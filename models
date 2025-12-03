@@ -1,0 +1,73 @@
+customer - Collection
+	- isDeleted
+	- Name
+	- Address
+	- Phone
+	- cardNumber
+	- regularProduct = []
+	- depositeAmount
+	- shopId (From Shop)
+	
+service : Collection
+	- milk
+	- water
+
+Shop - Collection	
+	- isDeleted
+	- isPlanActive
+	- shopName
+	- shopOwnerName
+	- phone
+	- Address
+	- features = [{
+	}]	
+	- uniqueId (shop0001)
+	- serviceId
+
+Product - Collection
+	- isDeleted
+	- Name Ex : (Gold (500ml)), (shakti (1 L))
+	- icon
+	
+shopProduct - Collection
+	- shopId
+	- price	
+	- productId
+	
+card
+	- customerId
+	- shopId
+	- month
+	- year	
+	- products : [
+	  {
+	  	day : 	  day here like (1,2,3..)
+	  	product : [
+	  		{  
+				productId : shopProductId (from shopProducts collection)
+				date&Time : 21-11-2025:7.30Am
+				qty : 	2
+				price : 30	  		
+	  		},
+	  		{	  		
+				productId : shopProductId (from shopProducts collection)
+				date&Time : 21-11-2025:6.30pm
+				qty : 	4
+				price : 30	  		
+	  		}
+	  	]
+	  }
+	]
+	- totalBill : 500
+
+cardPayment - Collection
+	  - customerId
+	  - shopId
+	  - month
+	  - year
+	  - amountPaid
+	  - date&Time
+	  - cardId
+
+	  
+

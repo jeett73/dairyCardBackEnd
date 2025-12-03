@@ -1,0 +1,31 @@
+{
+  "name": "node-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.11.1"
+  },
+  "scripts": {
+    "start": "nodemon src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "express": "*",
+    "helmet": "*",
+    "cors": "*",
+    "morgan": "*",
+    "joi": "*",
+    "jsonwebtoken": "*",
+    "argon2": "*",
+    "express-rate-limit": "*",
+    "dotenv": "*",
+    "redis": "*",
+    "hpp": "*",
+    "mongodb": "*",
+    "multer": "*"
+  },
+  "devDependencies": {
+    "nodemon": "*"
+  }
+}

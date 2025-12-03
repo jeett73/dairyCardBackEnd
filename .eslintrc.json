@@ -1,0 +1,72 @@
+{
+  "root": true,
+  "env": {
+    "es2023": true,
+    "node": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 2023,
+    "sourceType": "module"
+  },
+  "ignorePatterns": [
+    "node_modules/",
+    "dist/",
+    "coverage/",
+    "Dockerfile",
+    "docker-compose.yml",
+    ".env"
+  ],
+  "plugins": ["import", "n", "security", "prettier"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:n/recommended",
+    "plugin:import/recommended",
+    "plugin:security/recommended",
+    "plugin:prettier/recommended"
+  ],
+  "settings": {
+    "import/resolver": {
+      "node": {
+        "extensions": [".js", ".json"]
+      }
+    }
+  },
+  "rules": {
+    "no-console": "warn",
+    "no-unused-vars": [
+      "warn",
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "ignoreRestSiblings": true }
+    ],
+    "eqeqeq": "error",
+    "curly": ["error", "multi-line"],
+    "no-var": "error",
+    "prefer-const": "warn",
+    "object-shorthand": "warn",
+    "import/order": [
+      "warn",
+      {
+        "groups": ["builtin", "external", "internal", "parent", "sibling", "index"],
+        "newlines-between": "always",
+        "alphabetize": { "order": "asc", "caseInsensitive": true }
+      }
+    ],
+    "import/newline-after-import": ["warn", { "count": 1 }],
+    "import/no-duplicates": "warn",
+    "n/no-missing-import": ["error", { "tryExtensions": [".js", ".json"] }],
+    "n/no-extraneous-import": "error",
+    "security/detect-object-injection": "off",
+    "prettier/prettier": [
+      "error",
+      {
+        "semi": true,
+        "singleQuote": false,
+        "trailingComma": "none",
+        "printWidth": 100,
+        "tabWidth": 2,
+        "arrowParens": "always",
+        "endOfLine": "lf",
+        "bracketSpacing": true
+      }
+    ]
+  }
+}
