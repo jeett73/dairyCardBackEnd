@@ -13,11 +13,10 @@ export async function listCustomers(req, res) {
 
     const filter = { isDeleted: { $ne: true }, shopId: new ObjectId(shopId) };
     if (q) {
-      const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       if (q.length < 3) {
-        filter.cardNumber = new RegExp(escaped, "i");
+        filter.cardNumber = q.toString()
       } else {
-        filter.phone = new RegExp(`^${escaped}`);
+        filter.phone = q.toString() 
       }
     }
 
@@ -40,7 +39,14 @@ export async function listCustomers(req, res) {
             as: "shop"
           }
         },
-        { $addFields: { shop: { $arrayElemAt: ["$shop", 0] } } }
+        { $addFields: { shop: { $arrayElemAt: ["$shop", 0] } } },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            cardNumber: 1
+          }
+        }
       ])
       .toArray();
 

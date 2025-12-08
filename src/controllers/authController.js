@@ -1,7 +1,7 @@
 import { ObjectId } from "mongodb";
 import { findUserByEmail } from "../db/mockUserStore.js";
 import { hashPassword, verifyPassword } from "../utils/password.js";
-import { signAccessToken, signRefreshToken } from "../utils/jwt.js";
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/jwt.js";
 import { getCollection as getCustomerCollection } from "../models/customer.js";
 import { getCollection as getShopCollection } from "../models/shop.js";
 import { ok, updated, notFound, badRequest, serverError } from "../utils/response.js";
@@ -40,7 +40,8 @@ export async function verifyOtp(req, res) {
     const payload = { sub: customer._id.toString(), phone };
     const token = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
-    return res.status(200).json({ token, refreshToken, userId: customer._id.toString(), entityType: "customer" });
+    await customers.updateOne({ _id: customer._id }, { $set: { refreshToken } });
+    return res.status(200).json({ token, refreshToken, userId: customer._id.toString(), entityType: "customer", isMpinAlreadySet: customer?.mpinHash || null });
   }
 
   const shops = getShopCollection();
@@ -49,7 +50,8 @@ export async function verifyOtp(req, res) {
     const payload = { sub: shop._id.toString(), phone };
     const token = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
-    return res.status(200).json({ token, refreshToken, userId: shop._id.toString(), entityType: "shop" });
+    await shops.updateOne({ _id: shop._id }, { $set: { refreshToken } });
+    return res.status(200).json({ token, refreshToken, userId: shop._id.toString(), entityType: "shop", isMpinAlreadySet: shop?.mpinHash || null });
   }
 
   return res.status(404).json({ message: "User not found" });
@@ -87,7 +89,6 @@ export async function setMpin(req, res) {
     );
     updated(res, { message: "MPIN set", type: entityType });
   } catch (err) {
-    console.log(err);
     serverError(res);
   }
 }
@@ -109,7 +110,7 @@ export async function verifyMpin(req, res) {
       if (!valid) return res.status(401).json({ message: "Invalid MPIN" });
       const payload = { sub: customer._id.toString(), phone: customer.phone };
       const token = signAccessToken(payload);
-      return ok(res, { token, entityType: "customer" });
+      return ok(res, { token, entityType: "customer", userId: customer._id.toString() });
     }
 
     const shops = getShopCollection();
@@ -121,8 +122,34 @@ export async function verifyMpin(req, res) {
     if (!valid) return res.status(401).json({ message: "Invalid MPIN" });
     const payload = { sub: shop._id.toString(), phone: shop.phone };
     const token = signAccessToken(payload);
-    ok(res, { token, entityType: "shop" });
+    ok(res, { token, entityType: "shop", userId: shop._id.toString() });
   } catch {
     serverError(res);
+  }
+}
+
+export async function refresh(req, res) {
+  try {
+    const token = (req.body.refreshToken || "").toString();
+    const payload = verifyRefreshToken(token);
+    const id = new ObjectId((payload.sub || "").toString());
+    const customers = getCustomerCollection();
+    let entity = await customers.findOne({ _id: id });
+    let collection = customers;
+    if (!entity) {
+      const shops = getShopCollection();
+      const shop = await shops.findOne({ _id: id });
+      if (!shop) return notFound(res, "User not found");
+      entity = shop;
+      collection = shops;
+    }
+    const stored = (entity.refreshToken || "").toString();
+    if (!stored || stored !== token) {
+      return res.status(401).json({ message: "Invalid refresh token" });
+    }
+    const newAccessToken = signAccessToken({ sub: entity._id.toString(), phone: entity.phone });
+    ok(res, { token: newAccessToken });
+  } catch {
+    res.status(401).json({ message: "Invalid refresh token" });
   }
 }

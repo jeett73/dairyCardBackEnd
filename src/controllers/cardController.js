@@ -1,3 +1,4 @@
+import { ObjectId } from "mongodb";
 import { getCollection as getCardCollection } from "../models/card.js";
 import { ok, serverError } from "../utils/response.js";
 
@@ -14,7 +15,7 @@ export async function addOrder(req, res) {
 
     let card = await col.findOne({ customerId, shopId, month, year });
     if (!card) {
-      const insertDoc = { customerId, shopId, month, year, products: [], totalBill: 0 };
+      const insertDoc = { customerId : new ObjectId(customerId), shopId: new ObjectId(shopId), month, year, products: [], totalBill: 0 };
       const result = await col.insertOne(insertDoc);
       card = await col.findOne({ _id: result.insertedId });
     }

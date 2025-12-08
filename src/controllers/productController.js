@@ -14,7 +14,6 @@ export async function createProduct(req, res) {
     const createdDoc = await col.findOne({ _id: result.insertedId });
     created(res, { product: createdDoc });
   } catch {
-    console.log(res);
     serverError(res);
   }
 }

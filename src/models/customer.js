@@ -33,7 +33,8 @@ export const schema = Joi.object({
       return helpers.error("any.invalid");
     }
   }),
-  mpinHash: Joi.string().allow("")
+  mpinHash: Joi.string().allow(""),
+  refreshToken: Joi.string().allow("").default("")
 });
 
 export async function ensureIndexes(db) {

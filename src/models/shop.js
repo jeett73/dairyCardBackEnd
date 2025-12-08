@@ -27,11 +27,11 @@ export const schema = Joi.object({
   features: Joi.array().items(Joi.object()).default([]),
   uniqueId: Joi.string().required(),
   serviceId: Joi.string().hex().length(24).required(),
-  mpinHash: Joi.string().allow("")
+  mpinHash: Joi.string().allow(""),
+  refreshToken: Joi.string().allow("").default("")
 });
 
 export async function ensureIndexes(db) {
   const col = db.collection(collectionName);
   await col.createIndex({ phone: 1 }, { unique: true });
 }
-

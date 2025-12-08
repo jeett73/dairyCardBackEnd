@@ -33,3 +33,9 @@ export const verifyMpinSchema = Joi.object({
     mpin: Joi.string().regex(/^\d{4,6}$/).required()
   })
 });
+
+export const refreshSchema = Joi.object({
+  body: Joi.object({
+    refreshToken: Joi.string().required()
+  })
+});
