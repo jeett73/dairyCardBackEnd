@@ -13,7 +13,7 @@ export async function addOrder(req, res) {
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
 
-    let card = await col.findOne({ customerId, shopId, month, year });
+    let card = await col.findOne({ customerId : new ObjectId(customerId), shopId: new ObjectId(shopId), month, year });
     if (!card) {
       const insertDoc = { customerId : new ObjectId(customerId), shopId: new ObjectId(shopId), month, year, products: [], totalBill: 0 };
       const result = await col.insertOne(insertDoc);

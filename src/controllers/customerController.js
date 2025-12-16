@@ -44,7 +44,8 @@ export async function listCustomers(req, res) {
           $project: {
             _id: 1,
             name: 1,
-            cardNumber: 1
+            cardNumber: 1,
+            phone: 1
           }
         }
       ])

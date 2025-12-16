@@ -13,7 +13,7 @@ export const schema = Joi.object({
   name: Joi.string().required(),
   address: Joi.object({
     street1: Joi.string().trim().required(),
-    street2: Joi.string().trim(),
+    street2: Joi.string().allow('').trim(),
     city: Joi.string().trim().required(),
     state: Joi.string().trim().default('Gujarat').optional(),
     postalCode: Joi.string().trim().required(),

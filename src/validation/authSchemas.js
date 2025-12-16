@@ -39,3 +39,9 @@ export const refreshSchema = Joi.object({
     refreshToken: Joi.string().required()
   })
 });
+
+export const logoutSchema = Joi.object({
+  params: Joi.object({
+    userId: Joi.string().hex().length(24).required()
+  })
+});

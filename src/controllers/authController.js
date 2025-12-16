@@ -153,3 +153,25 @@ export async function refresh(req, res) {
     res.status(401).json({ message: "Invalid refresh token" });
   }
 }
+
+export async function logout(req, res) {
+  try {
+    const rawId = (req.params.userId || "").toString();
+    const id = new ObjectId(rawId);
+    const customers = getCustomerCollection();
+    const customer = await customers.findOne({ _id: id });
+    if (customer) {
+      await customers.updateOne({ _id: id }, { $unset: { refreshToken: "" } });
+      return updated(res, { message: "Logged out", entityType: "customer" });
+    }
+    const shops = getShopCollection();
+    const shop = await shops.findOne({ _id: id });
+    if (shop) {
+      await shops.updateOne({ _id: id }, { $unset: { refreshToken: "" } });
+      return updated(res, { message: "Logged out", entityType: "shop" });
+    }
+    return notFound(res, "User not found");
+  } catch {
+    serverError(res);
+  }
+}
