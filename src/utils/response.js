@@ -34,4 +34,3 @@ export function conflict(res, message = "Conflict") {
 export function serverError(res, message = "Internal server error") {
   res.status(500).json({ message });
 }
-

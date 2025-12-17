@@ -8,18 +8,17 @@ export async function addShopProduct(req, res) {
     const shopId = (req.body.shopId || "").toString();
     const productId = (req.body.productId || "").toString();
     const price = Number(req.body.price);
-    const existing = await col.findOne({ shopId, productId });
-    if (existing) {
-      return conflict(res, "Product already added to shop");
+    const result = await col.findOneAndUpdate(
+      { shopId: new ObjectId(shopId), productId: new ObjectId(productId) },
+      { $set: { price } },
+      { upsert: true, returnDocument: "after" }
+    );
+    if (result.lastErrorObject && result.lastErrorObject.updatedExisting) {
+      updated(res, { shopProduct: result.value });
+    } else {
+      created(res, { shopProduct: result.value });
     }
-    const insertDoc = { shopId : new ObjectId(shopId), productId : new ObjectId(productId), price };
-    const result = await col.insertOne(insertDoc);
-    const createdDoc = await col.findOne({ _id: result.insertedId });
-    created(res, { shopProduct: createdDoc });
   } catch (err) {
-    if (err && err.code === 11000) {
-      return conflict(res, "Product already added to shop");
-    }
     serverError(res);
   }
 }
