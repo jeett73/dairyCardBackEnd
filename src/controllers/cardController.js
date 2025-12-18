@@ -146,7 +146,7 @@ export async function getCardDetails(req, res) {
           month: "$doc.month",
           year: "$doc.year",
           totalBill: "$doc.totalBill",
-          day: "$_id.day",
+          day: { $toInt: "$_id.day" },
           items: {
             $filter: {
               input: "$items",
@@ -156,6 +156,7 @@ export async function getCardDetails(req, res) {
           }
         }
       },
+      { $sort: { day: -1 } },
       {
         $group: {
           _id: "$_id",
@@ -182,7 +183,7 @@ export async function getCardDetails(req, res) {
 
     const card = cards[0];
     if (card.products) {
-       card.products = card.products.filter(p => p.day != null).sort((a, b) => a.day - b.day);
+       card.products = card.products.filter(p => p.day != null).sort((a, b) => b.day - a.day);
     }
 
     ok(res, { card });
