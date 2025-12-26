@@ -61,13 +61,13 @@ export async function createCustomer(req, res) {
   try {
     const col = getCustomerCollection();
     const doc = req.body;
-    const shopId = (doc.shopId || "").toString();
+    const shopId = new ObjectId(doc.shopId);
     const phone = (doc.phone || "").toString();
     const existing = await col.findOne({ shopId, phone });
     if (existing) {
       return conflict(res, "Customer already exists");
     }
-    const insertDoc = { ...doc, isDeleted: false };
+    const insertDoc = { ...doc, isDeleted: false, shopId };
     const result = await col.insertOne(insertDoc);
     const createdDoc = await col.findOne({ _id: result.insertedId });
     created(res, { customer: createdDoc });

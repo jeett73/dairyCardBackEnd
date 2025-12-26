@@ -14,7 +14,7 @@ export const schema = Joi.object({
   address: Joi.object({
     street1: Joi.string().trim().required(),
     street2: Joi.string().allow('').trim(),
-    city: Joi.string().trim().required(),
+    city: Joi.string().trim().optional(),
     state: Joi.string().trim().default('Gujarat').optional(),
     postalCode: Joi.string().trim().required(),
     location: Joi.object({
@@ -24,7 +24,12 @@ export const schema = Joi.object({
   }),
   phone: Joi.string().length(10).required(),
   cardNumber: Joi.string().required(),
-  regularProduct: Joi.array().items(Joi.string().hex().length(24)).default([]),
+  regularProduct: Joi.array().items(
+    Joi.object({
+      productId: Joi.string().hex().length(24).required(),
+      qty: Joi.number().required()
+    })
+  ).optional(),
   depositeAmount: Joi.number().default(0),
   shopId: Joi.string().hex().length(24).required().custom((value, helpers) => {
     try {
