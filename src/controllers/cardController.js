@@ -193,3 +193,23 @@ export async function getCardDetails(req, res) {
   }
 }
 
+export async function getBillSummary(req, res) {
+  try {
+    const col = getCardCollection();
+    const { customerId, shopId } = req.query;
+
+    const card = await col.find(
+      {
+        customerId: new ObjectId(customerId),
+        shopId: new ObjectId(shopId)
+      },
+      {projection: { totalBill: 1, month: 1, year: 1, _id: 0 } }
+    ).toArray();
+
+    ok(res, card);
+  } catch (err) {
+    console.error(err);
+    serverError(res);
+  }
+}
+

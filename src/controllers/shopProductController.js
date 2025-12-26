@@ -65,6 +65,7 @@ export async function listShopProducts(req, res) {
         },
         { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
         { $addFields: { productName: { $ifNull: ["$product.Name", "$product.name"] } } },
+        { $addFields: { icon: { $ifNull: ["$product.icon", "$product.icon"] } } },
         { $project: { product: 0, productObjectId: 0 } }
       ])
       .toArray();

@@ -16,7 +16,7 @@ app.use(hpp());
 app.use(cors({ origin: config.corsOrigin, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan(config.env === "production" ? "combined" : "dev"));
-app.use("/uploads", express.static(path.resolve("uploads")));
+app.use("/uploads", express.static(path.resolve("src/uploads")));
 
 const authLimiter = rateLimit({ windowMs: config.rateLimit.windowMs, max: config.rateLimit.max, standardHeaders: true, legacyHeaders: false });
 app.use("/auth", authLimiter);
