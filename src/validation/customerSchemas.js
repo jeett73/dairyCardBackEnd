@@ -19,3 +19,20 @@ export const getCustomerByIdSchema = Joi.object({
     id: Joi.string().hex().length(24).required()
   })
 });
+
+export const updateCustomerSchema = Joi.object({
+  params: Joi.object({
+    id: Joi.string().hex().length(24).required()
+  }),
+  body: Joi.object({
+    name: Joi.string(),
+    cardNumber: Joi.string(),
+    street1: Joi.string().trim(),
+    regularProduct: Joi.array().items(
+      Joi.object({
+        productId: Joi.string().hex().length(24).required(),
+        qty: Joi.number().required(),
+      })
+    )
+  }).min(1)
+});

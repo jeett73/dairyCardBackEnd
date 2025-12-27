@@ -96,3 +96,42 @@ export async function getCustomerById(req, res) {
     serverError(res);
   }
 }
+
+export async function updateCustomer(req, res) {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return badRequest(res, 'Invalid customer ID');
+    }
+    
+    const col = getCustomerCollection();
+    const { name, cardNumber, street1, regularProduct } = req.body;
+    
+    const updateFields = {};
+    if (name !== undefined) updateFields.name = name;
+    if (cardNumber !== undefined) updateFields.cardNumber = cardNumber;
+    if (street1 !== undefined) updateFields['address.street1'] = street1;
+    if (regularProduct !== undefined) updateFields.regularProduct = regularProduct;
+
+    if (Object.keys(updateFields).length === 0) {
+      return badRequest(res, 'No fields to update');
+    }
+
+    const result = await col.findOneAndUpdate(
+      { _id: new ObjectId(id), isDeleted: { $ne: true } },
+      { $set: updateFields },
+      { returnDocument: 'after' }
+    );
+
+    if (!result) {
+      return notFound(res, 'Customer not found');
+    }
+
+    updated(res, { customer: result });
+  } catch (err) {
+    if (err && err.code === 11000) {
+      return conflict(res, 'Card number already exists');
+    }
+    serverError(res);
+  }
+}
