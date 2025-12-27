@@ -1,22 +1,22 @@
-import { getCollection as getCustomerCollection } from "../models/customer.js";
-import { collectionName as shopCollectionName } from "../models/shop.js";
-import { ok, created, conflict, serverError } from "../utils/response.js";
-import { ObjectId } from "mongodb";
+import { getCollection as getCustomerCollection } from '../models/customer.js';
+import { collectionName as shopCollectionName } from '../models/shop.js';
+import { ok, created, conflict, serverError } from '../utils/response.js';
+import { ObjectId } from 'mongodb';
 
 export async function listCustomers(req, res) {
   try {
     const col = getCustomerCollection();
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
-    const shopId = (req.query.shopId || "").toString();
-    const q = (req.query.q || "").toString().trim();
+    const shopId = (req.query.shopId || '').toString();
+    const q = (req.query.q || '').toString().trim();
 
     const filter = { isDeleted: { $ne: true }, shopId: new ObjectId(shopId) };
     if (q) {
       if (q.length < 3) {
-        filter.cardNumber = q.toString()
+        filter.cardNumber = q.toString();
       } else {
-        filter.phone = q.toString() 
+        filter.phone = q.toString();
       }
     }
 
@@ -31,23 +31,24 @@ export async function listCustomers(req, res) {
         {
           $lookup: {
             from: shopCollectionName,
-            let: { shopIdStr: "$shopId" },
+            let: { shopIdStr: '$shopId' },
             pipeline: [
-              { $match: { $expr: { $eq: ["$_id", "$$shopIdStr"] } } },
-              { $project: { shopName: 1, phone: 1, Address: 1, isPlanActive: 1 } }
+              { $match: { $expr: { $eq: ['$_id', '$$shopIdStr'] } } },
+              { $project: { shopName: 1, phone: 1, Address: 1, isPlanActive: 1 } },
             ],
-            as: "shop"
-          }
+            as: 'shop',
+          },
         },
-        { $addFields: { shop: { $arrayElemAt: ["$shop", 0] } } },
+        { $addFields: { shop: { $arrayElemAt: ['$shop', 0] } } },
         {
           $project: {
             _id: 1,
             name: 1,
             cardNumber: 1,
-            phone: 1
-          }
-        }
+            phone: 1,
+            regularProduct: 1,
+          },
+        },
       ])
       .toArray();
 
@@ -62,10 +63,10 @@ export async function createCustomer(req, res) {
     const col = getCustomerCollection();
     const doc = req.body;
     const shopId = new ObjectId(doc.shopId);
-    const phone = (doc.phone || "").toString();
+    const phone = (doc.phone || '').toString();
     const existing = await col.findOne({ shopId, phone });
     if (existing) {
-      return conflict(res, "Customer already exists");
+      return conflict(res, 'Customer already exists');
     }
     const insertDoc = { ...doc, isDeleted: false, shopId };
     const result = await col.insertOne(insertDoc);
@@ -73,7 +74,7 @@ export async function createCustomer(req, res) {
     created(res, { customer: createdDoc });
   } catch (err) {
     if (err && err.code === 11000) {
-      return conflict(res, "Card number already exists");
+      return conflict(res, 'Card number already exists');
     }
     serverError(res);
   }
