@@ -1,6 +1,6 @@
 import { getCollection as getCustomerCollection } from '../models/customer.js';
 import { collectionName as shopCollectionName } from '../models/shop.js';
-import { ok, created, conflict, serverError } from '../utils/response.js';
+import { ok, created, conflict, serverError, notFound, badRequest } from '../utils/response.js';
 import { ObjectId } from 'mongodb';
 
 export async function listCustomers(req, res) {
@@ -76,6 +76,23 @@ export async function createCustomer(req, res) {
     if (err && err.code === 11000) {
       return conflict(res, 'Card number already exists');
     }
+    serverError(res);
+  }
+}
+
+export async function getCustomerById(req, res) {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return badRequest(res, 'Invalid customer ID');
+    }
+    const col = getCustomerCollection();
+    const customer = await col.findOne({ _id: new ObjectId(id), isDeleted: { $ne: true } });
+    if (!customer) {
+      return notFound(res, 'Customer not found');
+    }
+    ok(res, { customer });
+  } catch (err) {
     serverError(res);
   }
 }

@@ -13,3 +13,9 @@ export const listCustomersSchema = Joi.object({
 export const createCustomerSchema = Joi.object({
   body: customerDocSchema.fork(["isDeleted", "mpinHash"], (s) => s.forbidden())
 });
+
+export const getCustomerByIdSchema = Joi.object({
+  params: Joi.object({
+    id: Joi.string().hex().length(24).required()
+  })
+});
