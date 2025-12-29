@@ -40,8 +40,10 @@ export async function verifyOtp(req, res) {
     const payload = { sub: customer._id.toString(), phone };
     const token = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
-    await customers.updateOne({ _id: customer._id }, { $set: { refreshToken } });
-    return res.status(200).json({ token, refreshToken, userId: customer._id.toString(), entityType: "customer", isMpinAlreadySet: customer?.mpinHash || null });
+    return res.status(200).json({ token, refreshToken, userId: customer._id.toString(), entityType: "customer", isMpinAlreadySet: customer?.mpinHash || null, shopId: customer.shopId.toString(), userDetails: {
+      name: customer.name,
+      cardNumber: customer.cardNumber,
+    } });
   }
 
   const shops = getShopCollection();
@@ -51,7 +53,9 @@ export async function verifyOtp(req, res) {
     const token = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
     await shops.updateOne({ _id: shop._id }, { $set: { refreshToken } });
-    return res.status(200).json({ token, refreshToken, userId: shop._id.toString(), entityType: "shop", isMpinAlreadySet: shop?.mpinHash || null });
+    return res.status(200).json({ token, refreshToken, userId: shop._id.toString(), entityType: "shop", isMpinAlreadySet: shop?.mpinHash || null, userDetails: {
+      name: shop.shopName,
+    } });
   }
 
   return res.status(404).json({ message: "User not found" });
