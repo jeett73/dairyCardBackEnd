@@ -25,7 +25,8 @@ export const schema = Joi.object({
       ).required()
     })
   ).default([]),
-  totalBill: Joi.number().default(0)
+  totalBill: Joi.number().default(0),
+  receivedAmount: Joi.number().default(0)
 });
 
 export async function ensureIndexes(db) {

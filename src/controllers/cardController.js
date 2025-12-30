@@ -1,23 +1,37 @@
-import { ObjectId } from "mongodb";
-import { getCollection as getCardCollection } from "../models/card.js";
-import { collectionName as shopProductCollectionName } from "../models/shopProduct.js";
-import { collectionName as productCollectionName } from "../models/product.js";
-import { ok, serverError } from "../utils/response.js";
+import { ObjectId } from 'mongodb';
+import { getCollection as getCardCollection } from '../models/card.js';
+import { getCollection as getCustomerCollection } from '../models/customer.js';
+import { collectionName as shopProductCollectionName } from '../models/shopProduct.js';
+import { collectionName as productCollectionName } from '../models/product.js';
+import { ok, serverError } from '../utils/response.js';
+import { sendNotification } from '../services/firebase.js';
 
 export async function addOrder(req, res) {
   try {
     const col = getCardCollection();
-    const customerId = (req.body.customerId || "").toString();
-    const shopId = (req.body.shopId || "").toString();
+    const customerId = (req.body.customerId || '').toString();
+    const shopId = (req.body.shopId || '').toString();
     const products = Array.isArray(req.body.products) ? req.body.products : [];
 
     const now = new Date();
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
 
-    let card = await col.findOne({ customerId : new ObjectId(customerId), shopId: new ObjectId(shopId), month, year });
+    let card = await col.findOne({
+      customerId: new ObjectId(customerId),
+      shopId: new ObjectId(shopId),
+      month,
+      year,
+    });
     if (!card) {
-      const insertDoc = { customerId : new ObjectId(customerId), shopId: new ObjectId(shopId), month, year, products: [], totalBill: 0 };
+      const insertDoc = {
+        customerId: new ObjectId(customerId),
+        shopId: new ObjectId(shopId),
+        month,
+        year,
+        products: [],
+        totalBill: 0,
+      };
       const result = await col.insertOne(insertDoc);
       card = await col.findOne({ _id: result.insertedId });
     }
@@ -49,8 +63,15 @@ export async function addOrder(req, res) {
     const updated = await col.findOneAndUpdate(
       { _id: card._id },
       { $set: { products: merged, totalBill } },
-      { returnDocument: "after" }
+      { returnDocument: 'after' },
     );
+
+    const customers = getCustomerCollection();
+    const customer = await customers.findOne({ _id: new ObjectId(customerId) });
+    if (customer && customer.fcmToken) {
+      await sendNotification(customer.fcmToken, 'Order Update', 'order is done');
+    }
+
     ok(res, { card: updated.value });
   } catch {
     serverError(res);
@@ -72,121 +93,185 @@ export async function getCardDetails(req, res) {
           customerId: new ObjectId(customerId),
           shopId: new ObjectId(shopId),
           month: month,
-          year: year
-        }
+          year: year,
+        },
       },
-      { $unwind: { path: "$products", preserveNullAndEmptyArrays: true } },
-      { $unwind: { path: "$products.product", preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$products', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$products.product', preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: shopProductCollectionName,
-          let: { pid: { $ifNull: ["$products.product.productId", "000000000000000000000000"] } },
+          let: { pid: { $ifNull: ['$products.product.productId', '000000000000000000000000'] } },
           pipeline: [
             {
               $match: {
-                $expr: { $eq: ["$_id", { $toObjectId: "$$pid" }] }
-              }
-            }
+                $expr: { $eq: ['$_id', { $toObjectId: '$$pid' }] },
+              },
+            },
           ],
-          as: "shopProduct"
-        }
+          as: 'shopProduct',
+        },
       },
-      { $unwind: { path: "$shopProduct", preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$shopProduct', preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: productCollectionName,
-          let: { pid: { $ifNull: ["$shopProduct.productId", "000000000000000000000000"] } },
+          let: { pid: { $ifNull: ['$shopProduct.productId', '000000000000000000000000'] } },
           pipeline: [
             {
               $match: {
-                $expr: { $eq: ["$_id", { $toObjectId: "$$pid" }] }
-              }
-            }
+                $expr: { $eq: ['$_id', { $toObjectId: '$$pid' }] },
+              },
+            },
           ],
-          as: "product"
-        }
+          as: 'product',
+        },
       },
-      { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$product', preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
           from: productCollectionName,
-          let: { pid: { $ifNull: ["$products.product.productId", "000000000000000000000000"] } },
+          let: { pid: { $ifNull: ['$products.product.productId', '000000000000000000000000'] } },
           pipeline: [
             {
               $match: {
-                $expr: { $eq: ["$_id", { $toObjectId: "$$pid" }] }
-              }
-            }
+                $expr: { $eq: ['$_id', { $toObjectId: '$$pid' }] },
+              },
+            },
           ],
-          as: "directProduct"
-        }
+          as: 'directProduct',
+        },
       },
-      { $unwind: { path: "$directProduct", preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$directProduct', preserveNullAndEmptyArrays: true } },
       {
         $addFields: {
-          "products.product.productName": { $ifNull: ["$product.Name", "$product.name", "$directProduct.Name", "$directProduct.name"] },
-          "products.product.icon": { $ifNull: ["$product.icon", "$directProduct.icon", "$products.product.icon"] }
-        }
+          'products.product.productName': {
+            $ifNull: [
+              '$product.Name',
+              '$product.name',
+              '$directProduct.Name',
+              '$directProduct.name',
+            ],
+          },
+          'products.product.icon': {
+            $ifNull: ['$product.icon', '$directProduct.icon', '$products.product.icon'],
+          },
+        },
       },
       {
         $group: {
           _id: {
-            _id: "$_id",
-            day: "$products.day"
+            _id: '$_id',
+            day: '$products.day',
           },
-          doc: { $first: "$$ROOT" },
-          items: { $push: "$products.product" }
-        }
+          doc: { $first: '$$ROOT' },
+          items: { $push: '$products.product' },
+        },
       },
       {
         $project: {
-          _id: "$doc._id",
-          customerId: "$doc.customerId",
-          shopId: "$doc.shopId",
-          month: "$doc.month",
-          year: "$doc.year",
-          totalBill: "$doc.totalBill",
-          day: { $toInt: "$_id.day" },
+          _id: '$doc._id',
+          customerId: '$doc.customerId',
+          shopId: '$doc.shopId',
+          month: '$doc.month',
+          year: '$doc.year',
+          totalBill: '$doc.totalBill',
+          day: { $toInt: '$_id.day' },
           items: {
             $filter: {
-              input: "$items",
-              as: "item",
-              cond: { $ne: ["$$item", null] }
-            }
-          }
-        }
+              input: '$items',
+              as: 'item',
+              cond: { $ne: ['$$item', null] },
+            },
+          },
+        },
       },
       { $sort: { day: -1 } },
       {
         $group: {
-          _id: "$_id",
-          customerId: { $first: "$customerId" },
-          shopId: { $first: "$shopId" },
-          month: { $first: "$month" },
-          year: { $first: "$year" },
-          totalBill: { $first: "$totalBill" },
+          _id: '$_id',
+          customerId: { $first: '$customerId' },
+          shopId: { $first: '$shopId' },
+          month: { $first: '$month' },
+          year: { $first: '$year' },
+          totalBill: { $first: '$totalBill' },
           products: {
             $push: {
-              day: "$day",
-              product: "$items"
-            }
-          }
-        }
-      }
+              day: '$day',
+              product: '$items',
+            },
+          },
+        },
+      },
     ];
 
     const cards = await col.aggregate(pipeline).toArray();
 
     if (!cards.length) {
-       return ok(res, { card: null });
+      return ok(res, { card: null });
     }
 
     const card = cards[0];
     if (card.products) {
-       card.products = card.products.filter(p => p.day != null).sort((a, b) => b.day - a.day);
+      card.products = card.products.filter((p) => p.day != null).sort((a, b) => b.day - a.day);
     }
 
     ok(res, { card });
+  } catch (err) {
+    console.error(err);
+    serverError(res);
+  }
+}
+
+export async function getCustomerDueCards(req, res) {
+  try {
+    const col = getCardCollection();
+    const { customerId, shopId } = req.query;
+
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    const pipeline = [
+      {
+        $match: {
+          customerId: new ObjectId(customerId),
+          shopId: new ObjectId(shopId),
+          $or: [
+            { year: { $lt: currentYear } },
+            { year: currentYear, month: { $lt: currentMonth } },
+          ],
+        },
+      },
+      {
+        $addFields: {
+          totalBillVal: { $ifNull: ['$totalBill', 0] },
+          receivedAmountVal: { $ifNull: ['$receivedAmount', 0] },
+        },
+      },
+      {
+        $addFields: {
+          dueAmount: { $subtract: ['$totalBillVal', '$receivedAmountVal'] },
+        },
+      },
+      {
+        $match: {
+          dueAmount: { $gt: 0 },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          month: 1,
+          year: 1,
+          dueAmount: 1,
+        },
+      },
+    ];
+
+    const dues = await col.aggregate(pipeline).toArray();
+
+    ok(res, { dues });
   } catch (err) {
     console.error(err);
     serverError(res);
@@ -198,13 +283,23 @@ export async function getBillSummary(req, res) {
     const col = getCardCollection();
     const { customerId, shopId } = req.query;
 
-    const card = await col.find(
-      {
-        customerId: new ObjectId(customerId),
-        shopId: new ObjectId(shopId)
-      },
-      {projection: { totalBill: 1, month: 1, year: 1, _id: 0 } }
-    ).toArray();
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    const card = await col
+      .find(
+        {
+          customerId: new ObjectId(customerId),
+          shopId: new ObjectId(shopId),
+          $or: [
+            { year: { $lt: currentYear } },
+            { year: currentYear, month: { $lt: currentMonth } },
+          ],
+        },
+        { projection: { totalBill: 1, month: 1, year: 1, _id: 0 } },
+      )
+      .toArray();
 
     ok(res, card);
   } catch (err) {
@@ -213,3 +308,79 @@ export async function getBillSummary(req, res) {
   }
 }
 
+export async function paymentDone(req, res) {
+  try {
+    const col = getCardCollection();
+    const { customerId, shopId, paymentAmount } = req.body;
+    let remainingPayment = Number(paymentAmount);
+
+    const cards = await col
+      .find({
+        customerId: new ObjectId(customerId),
+        shopId: new ObjectId(shopId),
+      })
+      .sort({ year: 1, month: 1 })
+      .toArray();
+
+    if (cards.length === 0) {
+      return ok(res, { message: 'No cards found for this customer' });
+    }
+
+    const updates = [];
+
+    for (const card of cards) {
+      if (remainingPayment <= 0) break;
+
+      const totalBill = Number(card.totalBill || 0);
+      const receivedAmount = Number(card.receivedAmount || 0);
+      const pending = totalBill - receivedAmount;
+
+      if (pending > 0) {
+        const toPay = Math.min(pending, remainingPayment);
+        const newReceived = receivedAmount + toPay;
+        remainingPayment -= toPay;
+
+        // Update local object to track latest state
+        card.receivedAmount = newReceived;
+
+        updates.push({
+          updateOne: {
+            filter: { _id: card._id },
+            update: { $set: { receivedAmount: newReceived } },
+          },
+        });
+      }
+    }
+
+    // If there is still remaining payment, add it to the last card (latest month)
+    if (remainingPayment > 0) {
+      const lastCard = cards[cards.length - 1];
+      const existingUpdateIndex = updates.findIndex(
+        (u) => u.updateOne.filter._id.toString() === lastCard._id.toString(),
+      );
+
+      let newReceived = Number(lastCard.receivedAmount || 0) + remainingPayment;
+
+      if (existingUpdateIndex !== -1) {
+        updates[existingUpdateIndex].updateOne.update.$set.receivedAmount = newReceived;
+      } else {
+        updates.push({
+          updateOne: {
+            filter: { _id: lastCard._id },
+            update: { $set: { receivedAmount: newReceived } },
+          },
+        });
+      }
+      remainingPayment = 0;
+    }
+
+    if (updates.length > 0) {
+      await col.bulkWrite(updates);
+    }
+
+    ok(res, { message: 'Payment processed successfully' });
+  } catch (err) {
+    console.error(err);
+    serverError(res);
+  }
+}

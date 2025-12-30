@@ -1,6 +1,7 @@
 import { getCollection as getCustomerCollection } from '../models/customer.js';
 import { collectionName as shopCollectionName } from '../models/shop.js';
-import { ok, created, conflict, serverError, notFound, badRequest } from '../utils/response.js';
+import { collectionName as cardCollectionName } from '../models/card.js';
+import { ok, created, updated, conflict, serverError, notFound, badRequest } from '../utils/response.js';
 import { ObjectId } from 'mongodb';
 
 export async function listCustomers(req, res) {
@@ -18,6 +19,15 @@ export async function listCustomers(req, res) {
       } else {
         filter.phone = q.toString();
       }
+    }
+
+    const now = new Date();
+    const prevMonthsCriteria = [];
+    for (let i = 1; i <= 5; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      prevMonthsCriteria.push({
+        $and: [{ $eq: ['$month', d.getMonth() + 1] }, { $eq: ['$year', d.getFullYear()] }],
+      });
     }
 
     const skip = (page - 1) * limit;
@@ -41,12 +51,49 @@ export async function listCustomers(req, res) {
         },
         { $addFields: { shop: { $arrayElemAt: ['$shop', 0] } } },
         {
+          $lookup: {
+            from: cardCollectionName,
+            let: { customerId: '$_id' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$customerId', '$$customerId'] },
+                      {
+                        $or: prevMonthsCriteria,
+                      },
+                    ],
+                  },
+                },
+              },
+              {
+                $project: {
+                  due: {
+                    $subtract: [
+                      { $ifNull: ['$totalBill', 0] },
+                      { $ifNull: ['$receivedAmount', 0] },
+                    ],
+                  },
+                },
+              },
+            ],
+            as: 'prevCards',
+          },
+        },
+        {
+          $addFields: {
+            previousMonthDue: { $sum: '$prevCards.due' },
+          },
+        },
+        {
           $project: {
             _id: 1,
             name: 1,
             cardNumber: 1,
             phone: 1,
             regularProduct: 1,
+            previousMonthDue: 1,
           },
         },
       ])

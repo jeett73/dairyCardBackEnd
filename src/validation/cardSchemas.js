@@ -1,5 +1,5 @@
-import Joi from "joi";
-import { schema as cardDocSchema } from "../models/card.js";
+import Joi from 'joi';
+import { schema as cardDocSchema } from '../models/card.js';
 
 export const addOrderSchema = Joi.object({
   body: Joi.object({
@@ -15,21 +15,28 @@ export const addOrderSchema = Joi.object({
                 productId: Joi.string().hex().length(24).required(),
                 time: Joi.number().required(),
                 qty: Joi.number().integer().min(1).required(),
-                price: Joi.number().min(0).required()
-              })
+                price: Joi.number().min(0).required(),
+              }),
             )
-            .required()
-        })
+            .required(),
+        }),
       )
       .min(1)
-      .required()
-  })
+      .required(),
+  }),
 });
 
 export const getCardDetailsSchema = Joi.object({
   query: Joi.object({
     customerId: Joi.string().hex().length(24).required(),
-    shopId: Joi.string().hex().length(24).required()
-  })
+    shopId: Joi.string().hex().length(24).required(),
+  }),
 });
 
+export const paymentDoneSchema = Joi.object({
+  body: Joi.object({
+    customerId: Joi.string().hex().length(24).required(),
+    shopId: Joi.string().hex().length(24).required(),
+    paymentAmount: Joi.number().min(1).required(),
+  }),
+});
