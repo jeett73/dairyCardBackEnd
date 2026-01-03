@@ -385,3 +385,118 @@ export async function paymentDone(req, res) {
     serverError(res);
   }
 }
+
+export async function getRecentOrders(req, res) {
+  try {
+    const col = getCardCollection();
+    const { shopId } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const today = new Date().getDate();
+
+    const pipeline = [
+      {
+        $match: {
+          shopId: new ObjectId(shopId),
+        },
+      },
+      { $sort: { modifiedAt: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: "customers",
+          localField: 'customerId',
+          foreignField: '_id',
+          as: 'customer',
+        },
+      },
+      { $unwind: { path: '$customer', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 1,
+          customerId: 1,
+          shopId: 1,
+          month: 1,
+          year: 1,
+          totalBill: 1,
+          receivedAmount: 1,
+          modifiedAt: 1,
+          products: {
+            $filter: {
+              input: '$products',
+              as: 'item',
+              cond: { $eq: ['$$item.day', today] },
+            },
+          },
+          customerName: '$customer.name',
+          cardNumber: '$customer.cardNumber',
+          phone: '$customer.phone',
+        },
+      },
+    ];
+
+    const orders = await col.aggregate(pipeline).toArray();
+
+    ok(res, { orders, page, limit });
+  } catch (err) {
+    console.error(err);
+    serverError(res);
+  }
+}
+
+export async function updateOrder(req, res) {
+  try {
+    const col = getCardCollection();
+    const { cardId, day, products } = req.body;
+
+    const card = await col.findOne({ _id: new ObjectId(cardId) });
+    if (!card) {
+      return res.status(404).json({ message: 'Card not found' });
+    }
+
+    // Calculate total for new products
+    let newDayTotal = 0;
+    for (const p of products) {
+      newDayTotal += Number(p.qty) * Number(p.price);
+    }
+
+    // Find existing products for the day and calculate old total
+    let oldDayTotal = 0;
+    const existingDayEntry = card.products.find((p) => p.day === day);
+    if (existingDayEntry) {
+      for (const p of existingDayEntry.product) {
+        oldDayTotal += Number(p.qty) * Number(p.price);
+      }
+    }
+
+    // Calculate difference
+    const diff = newDayTotal - oldDayTotal;
+    const newTotalBill = (card.totalBill || 0) + diff;
+
+    // Update products array
+    let updatedProducts = card.products.filter((p) => p.day !== day);
+    if (products.length > 0) {
+      updatedProducts.push({ day, product: products });
+    }
+    updatedProducts.sort((a, b) => a.day - b.day);
+
+    const updated = await col.findOneAndUpdate(
+      { _id: card._id },
+      {
+        $set: {
+          products: updatedProducts,
+          totalBill: newTotalBill,
+          modifiedAt: new Date(),
+        },
+      },
+      { returnDocument: 'after' }
+    );
+
+    ok(res, { message: 'Order updated successfully' }, { card: updated.value });
+  } catch (err) {
+    console.error(err);
+    serverError(res);
+  }
+}

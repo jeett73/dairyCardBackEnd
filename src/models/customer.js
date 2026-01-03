@@ -1,11 +1,12 @@
 import Joi from 'joi';
 import { ObjectId } from 'mongodb';
 import { getDb } from '../services/mongo.js';
+import { wrapCollection } from '../utils/mongoWrapper.js';
 
 export const collectionName = 'customers';
 
 export function getCollection() {
-  return getDb().collection(collectionName);
+  return wrapCollection(getDb().collection(collectionName));
 }
 
 export const schema = Joi.object({
@@ -47,7 +48,9 @@ export const schema = Joi.object({
       deviceId: Joi.string().required(),
     })
   ).default([]),
-  fcmToken: Joi.string().allow("").default("")
+  fcmToken: Joi.string().allow("").default(""),
+  createdAt: Joi.date().default(Date.now),
+  modifiedAt: Joi.date().default(Date.now)
 });
 
 export async function ensureIndexes(db) {

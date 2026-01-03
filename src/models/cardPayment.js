@@ -1,10 +1,11 @@
 import Joi from "joi";
 import { getDb } from "../services/mongo.js";
+import { wrapCollection } from "../utils/mongoWrapper.js";
 
 export const collectionName = "cardPayments";
 
 export function getCollection() {
-  return getDb().collection(collectionName);
+  return wrapCollection(getDb().collection(collectionName));
 }
 
 export const schema = Joi.object({
@@ -14,7 +15,9 @@ export const schema = Joi.object({
   year: Joi.number().integer().min(1900).required(),
   amountPaid: Joi.number().required(),
   "date&Time": Joi.string().required(),
-  cardId: Joi.string().hex().length(24).required()
+  cardId: Joi.string().hex().length(24).required(),
+  createdAt: Joi.date().default(Date.now),
+  modifiedAt: Joi.date().default(Date.now)
 });
 
 export async function ensureIndexes(db) {

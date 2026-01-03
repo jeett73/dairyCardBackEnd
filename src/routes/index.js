@@ -14,6 +14,6 @@ export default function routes(app) {
   app.use("/shops", authenticate, shopsRouter);
   app.use("/products", authenticate, productsRouter);
   app.use("/shop-products", authenticate, shopProductsRouter);
-  app.use("/customers", customersRouter);
-  app.use("/cards", cardsRouter);
+  app.use("/customers", authenticate, customersRouter);
+  app.use("/cards", authenticate, cardsRouter);
 }
