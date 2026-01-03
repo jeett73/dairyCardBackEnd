@@ -1,24 +1,9 @@
 import { ObjectId } from "mongodb";
-import { findUserByEmail } from "../db/mockUserStore.js";
 import { hashPassword, verifyPassword } from "../utils/password.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/jwt.js";
 import { getCollection as getCustomerCollection } from "../models/customer.js";
 import { getCollection as getShopCollection } from "../models/shop.js";
 import { ok, updated, notFound, badRequest, serverError } from "../utils/response.js";
-
-export async function login(req, res) {
-  const { email, password } = req.body;
-  const user = await findUserByEmail(email);
-  if (!user) return res.status(401).json({ message: "Invalid credentials" });
-  const valid = await verifyPassword(user.passwordHash, password);
-  if (!valid) return res.status(401).json({ message: "Invalid credentials" });
-  const token = signAccessToken({ sub: user.id, email: user.email });
-  res.status(200).json({ token });
-}
-
-export async function profile(req, res) {
-  res.status(200).json({ user: { id: req.user.sub, email: req.user.email } });
-}
 
 export async function sendOtp(req, res) {
   const phone = (req.body.phone || "").toString();
@@ -34,12 +19,25 @@ export async function sendOtp(req, res) {
 export async function verifyOtp(req, res) {
   const phone = (req.body.phone || "").toString();
   const _otp = (req.body.otp || "").toString();
+  const fcmToken = req.body.fcmToken;
+  const deviceId = req.body.deviceId;
   const customers = getCustomerCollection();
   const customer = await customers.findOne({ phone });
   if (customer) {
     const payload = { sub: customer._id.toString(), phone };
     const token = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
+    
+    await customers.updateOne({ _id: customer._id }, { $pull: { refreshToken: { deviceId } } });
+    
+    const update = {
+      $push: { refreshToken: { refreshToken, deviceId } }
+    };
+    if (fcmToken) {
+      update.$set = { fcmToken };
+    }
+    
+    await customers.updateOne({ _id: customer._id }, update);
     return res.status(200).json({ token, refreshToken, userId: customer._id.toString(), entityType: "customer", isMpinAlreadySet: customer?.mpinHash || null, shopId: customer.shopId.toString(), userDetails: {
       name: customer.name,
       cardNumber: customer.cardNumber,
@@ -52,7 +50,10 @@ export async function verifyOtp(req, res) {
     const payload = { sub: shop._id.toString(), phone };
     const token = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
-    await shops.updateOne({ _id: shop._id }, { $set: { refreshToken } });
+    
+    await shops.updateOne({ _id: shop._id }, { $pull: { refreshToken: { deviceId } } });
+    await shops.updateOne({ _id: shop._id }, { $push: { refreshToken: { refreshToken, deviceId } } });
+
     return res.status(200).json({ token, refreshToken, userId: shop._id.toString(), entityType: "shop", isMpinAlreadySet: shop?.mpinHash || null, userDetails: {
       name: shop.shopName,
     } });
@@ -135,6 +136,7 @@ export async function verifyMpin(req, res) {
 export async function refresh(req, res) {
   try {
     const token = (req.body.refreshToken || "").toString();
+    const deviceId = (req.body.deviceId || "").toString();
     const payload = verifyRefreshToken(token);
     const id = new ObjectId((payload.sub || "").toString());
     const customers = getCustomerCollection();
@@ -147,8 +149,16 @@ export async function refresh(req, res) {
       entity = shop;
       collection = shops;
     }
-    const stored = (entity.refreshToken || "").toString();
-    if (!stored || stored !== token) {
+    const tokens = entity.refreshToken || [];
+    let stored = null;
+    if (Array.isArray(tokens)) {
+      const found = tokens.find(t => t.deviceId === deviceId && t.refreshToken === token);
+      if (found) stored = found.refreshToken;
+    } else if (typeof tokens === 'string') {
+      if (tokens === token) stored = token;
+    }
+    
+    if (!stored) {
       return res.status(401).json({ message: "Invalid refresh token" });
     }
     const newAccessToken = signAccessToken({ sub: entity._id.toString(), phone: entity.phone });
@@ -161,17 +171,18 @@ export async function refresh(req, res) {
 export async function logout(req, res) {
   try {
     const rawId = (req.params.userId || "").toString();
+    const deviceId = (req.body.deviceId || "").toString();
     const id = new ObjectId(rawId);
     const customers = getCustomerCollection();
     const customer = await customers.findOne({ _id: id });
     if (customer) {
-      await customers.updateOne({ _id: id }, { $unset: { refreshToken: "" } });
+      await customers.updateOne({ _id: id }, { $pull: { refreshToken: { deviceId } } });
       return updated(res, { message: "Logged out", entityType: "customer" });
     }
     const shops = getShopCollection();
     const shop = await shops.findOne({ _id: id });
     if (shop) {
-      await shops.updateOne({ _id: id }, { $unset: { refreshToken: "" } });
+      await shops.updateOne({ _id: id }, { $pull: { refreshToken: { deviceId } } });
       return updated(res, { message: "Logged out", entityType: "shop" });
     }
     return notFound(res, "User not found");

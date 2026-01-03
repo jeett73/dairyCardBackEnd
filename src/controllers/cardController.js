@@ -4,7 +4,7 @@ import { getCollection as getCustomerCollection } from '../models/customer.js';
 import { collectionName as shopProductCollectionName } from '../models/shopProduct.js';
 import { collectionName as productCollectionName } from '../models/product.js';
 import { ok, serverError } from '../utils/response.js';
-import { sendNotification } from '../services/firebase.js';
+import { sendPushNotificationsAsync } from '../services/expoNotification.js';
 
 export async function addOrder(req, res) {
   try {
@@ -69,11 +69,12 @@ export async function addOrder(req, res) {
     const customers = getCustomerCollection();
     const customer = await customers.findOne({ _id: new ObjectId(customerId) });
     if (customer && customer.fcmToken) {
-      await sendNotification(customer.fcmToken, 'Order Update', 'order is done');
+      await sendPushNotificationsAsync([customer.fcmToken], 'Order Update', 'Order Done');
     }
 
     ok(res, { card: updated.value });
-  } catch {
+  } catch (error) {
+    console.error(error);
     serverError(res);
   }
 }

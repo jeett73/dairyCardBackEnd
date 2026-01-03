@@ -16,7 +16,9 @@ export const sendOtpSchema = Joi.object({
 export const verifyOtpSchema = Joi.object({
   body: Joi.object({
     phone: Joi.string().regex(/^\d{10}$/).required(),
-    otp: Joi.string().trim().min(4).max(6).required()
+    otp: Joi.string().trim().min(4).max(6).required(),
+    deviceId: Joi.string().required(),
+    fcmToken: Joi.string().optional()
   })
 });
 

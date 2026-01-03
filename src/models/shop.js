@@ -28,7 +28,12 @@ export const schema = Joi.object({
   uniqueId: Joi.string().required(),
   serviceId: Joi.string().hex().length(24).required(),
   mpinHash: Joi.string().allow(""),
-  refreshToken: Joi.string().allow("").default("")
+  refreshToken: Joi.array().items(
+    Joi.object({
+      refreshToken: Joi.string().required(),
+      deviceId: Joi.string().required(),
+    })
+  ).default([]),
 });
 
 export async function ensureIndexes(db) {

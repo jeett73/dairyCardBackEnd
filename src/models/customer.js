@@ -33,19 +33,21 @@ export const schema = Joi.object({
     )
     .optional(),
   depositeAmount: Joi.number().default(0),
-  shopId: Joi.string()
-    .hex()
-    .length(24)
-    .required()
-    .custom((value, helpers) => {
-      try {
-        return new ObjectId(value);
-      } catch {
-        return helpers.error('any.invalid');
-      }
-    }),
-  mpinHash: Joi.string().allow(''),
-  refreshToken: Joi.string().allow('').default(''),
+  shopId: Joi.string().hex().length(24).required().custom((value, helpers) => {
+    try {
+      return new ObjectId(value);
+    } catch {
+      return helpers.error("any.invalid");
+    }
+  }),
+  mpinHash: Joi.string().allow(""),
+  refreshToken: Joi.array().items(
+    Joi.object({
+      refreshToken: Joi.string().required(),
+      deviceId: Joi.string().required(),
+    })
+  ).default([]),
+  fcmToken: Joi.string().allow("").default("")
 });
 
 export async function ensureIndexes(db) {
