@@ -399,6 +399,7 @@ export async function getRecentOrders(req, res) {
       {
         $match: {
           shopId: new ObjectId(shopId),
+          'products.day': today,
         },
       },
       { $sort: { modifiedAt: -1 } },
