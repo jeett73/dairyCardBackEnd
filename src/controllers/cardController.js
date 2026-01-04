@@ -43,18 +43,36 @@ export async function addOrder(req, res) {
     }
     for (const entry of additions) {
       const existing = dayMap.get(entry.day);
+      const newProducts = entry.product || [];
+      const newOthers = entry.others || [];
+
       if (existing) {
-        existing.product.push(...entry.product);
+        if (existing.product) existing.product.push(...newProducts);
+        else existing.product = [...newProducts];
+
+        if (existing.others) existing.others.push(...newOthers);
+        else existing.others = [...newOthers];
       } else {
-        dayMap.set(entry.day, { day: entry.day, product: [...entry.product] });
+        dayMap.set(entry.day, {
+          day: entry.day,
+          product: [...newProducts],
+          others: [...newOthers],
+        });
       }
     }
     const merged = Array.from(dayMap.values()).sort((a, b) => a.day - b.day);
 
     let delta = 0;
     for (const e of additions) {
-      for (const p of e.product) {
-        delta += Number(p.qty) * Number(p.price);
+      if (e.product) {
+        for (const p of e.product) {
+          delta += Number(p.qty) * Number(p.price);
+        }
+      }
+      if (e.others) {
+        for (const o of e.others) {
+          delta += Number(o.price);
+        }
       }
     }
 
@@ -167,6 +185,7 @@ export async function getCardDetails(req, res) {
           },
           doc: { $first: '$$ROOT' },
           items: { $push: '$products.product' },
+          others: { $first: '$products.others' },
         },
       },
       {
@@ -178,6 +197,7 @@ export async function getCardDetails(req, res) {
           year: '$doc.year',
           totalBill: '$doc.totalBill',
           day: { $toInt: '$_id.day' },
+          others: '$others',
           items: {
             $filter: {
               input: '$items',
@@ -200,6 +220,7 @@ export async function getCardDetails(req, res) {
             $push: {
               day: '$day',
               product: '$items',
+              others: '$others',
             },
           },
         },

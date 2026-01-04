@@ -23,7 +23,13 @@ export const schema = Joi.object({
           qty: Joi.number().integer().min(1).required(),
           price: Joi.number().min(0).required()
         })
-      ).required()
+      ).required(),
+      others: Joi.array().items(
+        Joi.object({
+          time: Joi.number().required(),
+          price: Joi.number().min(0).required()
+        })
+      ).default([]),
     })
   ).default([]),
   totalBill: Joi.number().default(0),

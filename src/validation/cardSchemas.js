@@ -18,6 +18,14 @@ export const addOrderSchema = Joi.object({
               }),
             )
             .required(),
+          others: Joi.array()
+            .items(
+              Joi.object({
+                time: Joi.number().required(),
+                price: Joi.number().min(0).required(),
+              }),
+            )
+            .default([]),
         }),
       )
       .min(1)
