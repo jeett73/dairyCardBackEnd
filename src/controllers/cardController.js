@@ -471,25 +471,37 @@ export async function getRecentOrders(req, res) {
 export async function updateOrder(req, res) {
   try {
     const col = getCardCollection();
-    const { cardId, day, products } = req.body;
+    const { cardId, day, products, others } = req.body;
 
     const card = await col.findOne({ _id: new ObjectId(cardId) });
     if (!card) {
       return res.status(404).json({ message: 'Card not found' });
     }
 
+    const othersList = others || [];
+
     // Calculate total for new products
     let newDayTotal = 0;
     for (const p of products) {
       newDayTotal += Number(p.qty) * Number(p.price);
+    }
+    for (const o of othersList) {
+      newDayTotal += Number(o.price);
     }
 
     // Find existing products for the day and calculate old total
     let oldDayTotal = 0;
     const existingDayEntry = card.products.find((p) => p.day === day);
     if (existingDayEntry) {
-      for (const p of existingDayEntry.product) {
-        oldDayTotal += Number(p.qty) * Number(p.price);
+      if (existingDayEntry.product) {
+        for (const p of existingDayEntry.product) {
+          oldDayTotal += Number(p.qty) * Number(p.price);
+        }
+      }
+      if (existingDayEntry.others) {
+        for (const o of existingDayEntry.others) {
+          oldDayTotal += Number(o.price);
+        }
       }
     }
 
@@ -499,8 +511,8 @@ export async function updateOrder(req, res) {
 
     // Update products array
     let updatedProducts = card.products.filter((p) => p.day !== day);
-    if (products.length > 0) {
-      updatedProducts.push({ day, product: products });
+    if (products.length > 0 || othersList.length > 0) {
+      updatedProducts.push({ day, product: products, others: othersList });
     }
     updatedProducts.sort((a, b) => a.day - b.day);
 

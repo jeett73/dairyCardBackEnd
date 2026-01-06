@@ -47,6 +47,14 @@ export const updateOrderSchema = Joi.object({
         }),
       )
       .required(),
+    others: Joi.array()
+      .items(
+        Joi.object({
+          time: Joi.number().required(),
+          price: Joi.number().min(0).required(),
+        }),
+      )
+      .default([]),
   }),
 });
 
