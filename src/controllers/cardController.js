@@ -420,12 +420,14 @@ export async function getRecentOrders(req, res) {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    const { day: today } = getISTTime();
+    const { day: today, month, year } = getISTTime();
 
     const pipeline = [
       {
         $match: {
           shopId: new ObjectId(shopId),
+          month,
+          year,
           'products.day': today,
         },
       },
