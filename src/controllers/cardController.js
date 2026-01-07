@@ -87,7 +87,16 @@ export async function addOrder(req, res) {
     const customers = getCustomerCollection();
     const customer = await customers.findOne({ _id: new ObjectId(customerId) });
     if (customer && customer.fcmToken) {
-      await sendPushNotificationsAsync([customer.fcmToken], 'Order Update', 'Order Done');
+      let tokens = [];
+      if (Array.isArray(customer.fcmToken)) {
+        tokens = customer.fcmToken.map(t => t.fcmToken).filter(t => t);
+      } else if (typeof customer.fcmToken === 'string') {
+        tokens = [customer.fcmToken];
+      }
+
+      if (tokens.length > 0) {
+        await sendPushNotificationsAsync(tokens, 'Order Update', 'Order Done');
+      }
     }
 
     ok(res, { card: updated.value });

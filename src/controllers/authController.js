@@ -28,16 +28,32 @@ export async function verifyOtp(req, res) {
     const token = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
     
-    await customers.updateOne({ _id: customer._id }, { $pull: { refreshToken: { deviceId } } });
+    const pullUpdate = {
+      $pull: { refreshToken: { deviceId } }
+    };
+
+    if (Array.isArray(customer.fcmToken)) {
+      pullUpdate.$pull.fcmToken = { deviceId };
+    }
+
+    await customers.updateOne(
+      { _id: customer._id }, 
+      pullUpdate
+    );
     
-    const update = {
+    const updateOps = {
       $push: { refreshToken: { refreshToken, deviceId } }
     };
+
     if (fcmToken) {
-      update.$set = { fcmToken };
+      if (customer.fcmToken && !Array.isArray(customer.fcmToken)) {
+        updateOps.$set = { fcmToken: [{ fcmToken, deviceId }] };
+      } else {
+        updateOps.$push.fcmToken = { fcmToken, deviceId };
+      }
     }
     
-    await customers.updateOne({ _id: customer._id }, update);
+    await customers.updateOne({ _id: customer._id }, updateOps);
     return res.status(200).json({ token, refreshToken, userId: customer._id.toString(), entityType: "customer", isMpinAlreadySet: customer?.mpinHash || null, shopId: customer.shopId.toString(), userDetails: {
       name: customer.name,
       cardNumber: customer.cardNumber,
@@ -51,8 +67,20 @@ export async function verifyOtp(req, res) {
     const token = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
     
-    await shops.updateOne({ _id: shop._id }, { $pull: { refreshToken: { deviceId } } });
-    await shops.updateOne({ _id: shop._id }, { $push: { refreshToken: { refreshToken, deviceId } } });
+    await shops.updateOne(
+      { _id: shop._id }, 
+      { 
+        $pull: { 
+          refreshToken: { deviceId }
+        } 
+      }
+    );
+
+    const updateOps = {
+      $push: { refreshToken: { refreshToken, deviceId } }
+    };
+
+    await shops.updateOne({ _id: shop._id }, updateOps);
 
     return res.status(200).json({ token, refreshToken, userId: shop._id.toString(), entityType: "shop", isMpinAlreadySet: shop?.mpinHash || null, userDetails: {
       name: shop.shopName,
@@ -176,13 +204,32 @@ export async function logout(req, res) {
     const customers = getCustomerCollection();
     const customer = await customers.findOne({ _id: id });
     if (customer) {
-      await customers.updateOne({ _id: id }, { $pull: { refreshToken: { deviceId } } });
+      const pullOps = { 
+        $pull: { 
+          refreshToken: { deviceId }
+        } 
+      };
+      if (Array.isArray(customer.fcmToken)) {
+        pullOps.$pull.fcmToken = { deviceId };
+      }
+      await customers.updateOne(
+        { _id: id }, 
+        pullOps
+      );
       return updated(res, { message: "Logged out", entityType: "customer" });
     }
     const shops = getShopCollection();
     const shop = await shops.findOne({ _id: id });
     if (shop) {
-      await shops.updateOne({ _id: id }, { $pull: { refreshToken: { deviceId } } });
+      const pullOps = { 
+        $pull: { 
+          refreshToken: { deviceId }
+        } 
+      };
+      await shops.updateOne(
+        { _id: id }, 
+        pullOps
+      );
       return updated(res, { message: "Logged out", entityType: "shop" });
     }
     return notFound(res, "User not found");

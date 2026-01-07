@@ -48,7 +48,12 @@ export const schema = Joi.object({
       deviceId: Joi.string().required(),
     })
   ).default([]),
-  fcmToken: Joi.string().allow("").default(""),
+  fcmToken: Joi.array().items(
+    Joi.object({
+      fcmToken: Joi.string().required(),
+      deviceId: Joi.string().required(),
+    })
+  ).default([]),
   createdAt: Joi.date().default(Date.now),
   modifiedAt: Joi.date().default(Date.now)
 });
