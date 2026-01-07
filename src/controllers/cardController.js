@@ -5,6 +5,7 @@ import { collectionName as shopProductCollectionName } from '../models/shopProdu
 import { collectionName as productCollectionName } from '../models/product.js';
 import { ok, serverError } from '../utils/response.js';
 import { sendPushNotificationsAsync } from '../services/expoNotification.js';
+import { getISTTime } from '../utils/dateUtils.js';
 
 export async function addOrder(req, res) {
   try {
@@ -13,9 +14,7 @@ export async function addOrder(req, res) {
     const shopId = (req.body.shopId || '').toString();
     const products = Array.isArray(req.body.products) ? req.body.products : [];
 
-    const now = new Date();
-    const month = now.getMonth() + 1;
-    const year = now.getFullYear();
+    const { month, year } = getISTTime();
 
     let card = await col.findOne({
       customerId: new ObjectId(customerId),
@@ -259,9 +258,7 @@ export async function getCustomerDueCards(req, res) {
     const col = getCardCollection();
     const { customerId, shopId } = req.query;
 
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
+    const { month: currentMonth, year: currentYear } = getISTTime();
 
     const pipeline = [
       {
@@ -423,7 +420,7 @@ export async function getRecentOrders(req, res) {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    const today = new Date().getDate();
+    const { day: today } = getISTTime();
 
     const pipeline = [
       {

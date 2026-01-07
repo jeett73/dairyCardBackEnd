@@ -3,6 +3,7 @@ import { collectionName as shopCollectionName } from '../models/shop.js';
 import { collectionName as cardCollectionName } from '../models/card.js';
 import { ok, created, updated, conflict, serverError, notFound, badRequest } from '../utils/response.js';
 import { ObjectId } from 'mongodb';
+import { getISTTime } from '../utils/dateUtils.js';
 
 export async function listCustomers(req, res) {
   try {
@@ -21,12 +22,17 @@ export async function listCustomers(req, res) {
       }
     }
 
-    const now = new Date();
+    const { month, year } = getISTTime();
     const prevMonthsCriteria = [];
     for (let i = 1; i <= 5; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      let targetMonth = month - i;
+      let targetYear = year;
+      while (targetMonth < 1) {
+        targetMonth += 12;
+        targetYear -= 1;
+      }
       prevMonthsCriteria.push({
-        $and: [{ $eq: ['$month', d.getMonth() + 1] }, { $eq: ['$year', d.getFullYear()] }],
+        $and: [{ $eq: ['$month', targetMonth] }, { $eq: ['$year', targetYear] }],
       });
     }
 
