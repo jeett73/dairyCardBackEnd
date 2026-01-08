@@ -15,7 +15,7 @@ export async function listCustomers(req, res) {
 
     const filter = { isDeleted: { $ne: true }, shopId: new ObjectId(shopId) };
     if (q) {
-      if (q.length < 3) {
+      if (q.length <= 3) {
         filter.cardNumber = q.toString();
       } else {
         filter.phone = q.toString();

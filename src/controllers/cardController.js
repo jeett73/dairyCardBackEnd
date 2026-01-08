@@ -94,7 +94,11 @@ export async function addOrder(req, res) {
       }
 
       if (tokens.length > 0) {
-        await sendPushNotificationsAsync(tokens, 'Order Update', 'Order Done');
+        await sendPushNotificationsAsync(
+          tokens,
+          'Today’s Order',
+          'Your shop added new items to today’s order.\nTap to view details.',
+        );
       }
     }
 
@@ -406,6 +410,25 @@ export async function paymentDone(req, res) {
       await col.bulkWrite(updates);
     }
 
+    const customers = getCustomerCollection();
+    const customer = await customers.findOne({ _id: new ObjectId(customerId) });
+    if (customer && customer.fcmToken) {
+      let tokens = [];
+      if (Array.isArray(customer.fcmToken)) {
+        tokens = customer.fcmToken.map((t) => t.fcmToken).filter((t) => t);
+      } else if (typeof customer.fcmToken === 'string') {
+        tokens = [customer.fcmToken];
+      }
+
+      if (tokens.length > 0) {
+        await sendPushNotificationsAsync(
+          tokens,
+          'Payment Update',
+          'Last month’s payment has been cleared.',
+        );
+      }
+    }
+
     ok(res, { message: 'Payment processed successfully' });
   } catch (err) {
     console.error(err);
@@ -535,6 +558,25 @@ export async function updateOrder(req, res) {
       },
       { returnDocument: 'after' }
     );
+
+    const customers = getCustomerCollection();
+    const customer = await customers.findOne({ _id: card.customerId });
+    if (customer && customer.fcmToken) {
+      let tokens = [];
+      if (Array.isArray(customer.fcmToken)) {
+        tokens = customer.fcmToken.map((t) => t.fcmToken).filter((t) => t);
+      } else if (typeof customer.fcmToken === 'string') {
+        tokens = [customer.fcmToken];
+      }
+
+      if (tokens.length > 0) {
+        await sendPushNotificationsAsync(
+          tokens,
+          'Order Updated',
+          'Today’s order has been updated successfully.\nTap to view details.'
+        );
+      }
+    }
 
     ok(res, { message: 'Order updated successfully' }, { card: updated.value });
   } catch (err) {
