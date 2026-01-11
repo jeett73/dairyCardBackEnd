@@ -8,6 +8,8 @@ import { ok, updated, notFound, badRequest, serverError } from "../utils/respons
 export async function login(req, res) {
   const phone = (req.body.phone || "").toString();
   const password = (req.body.password || "").toString();
+  const fcmToken = req.body.fcmToken;
+  const deviceId = req.body.deviceId;
   
   const customers = getCustomerCollection();
   const customer = await customers.findOne({ phone, cardNumber: password });
@@ -15,12 +17,98 @@ export async function login(req, res) {
     if (customer.refreshToken && customer.refreshToken.length > 0) {
       return res.status(400).json({ message: "User already loggedin one device" });
     }
-    return res.status(200).json({ message: "User verified" });
+    
+    const payload = { sub: customer._id.toString(), phone };
+    const token = signAccessToken(payload);
+    const refreshToken = signRefreshToken(payload);
+    
+    const pullUpdate = {
+      $pull: { refreshToken: { deviceId } }
+    };
+
+    if (Array.isArray(customer.fcmToken)) {
+      pullUpdate.$pull.fcmToken = { deviceId };
+    }
+
+    await customers.updateOne(
+      { _id: customer._id }, 
+      pullUpdate
+    );
+    
+    const updateOps = {
+      $push: { refreshToken: { refreshToken, deviceId } }
+    };
+
+    if (fcmToken) {
+      if (customer.fcmToken && !Array.isArray(customer.fcmToken)) {
+        updateOps.$set = { fcmToken: [{ fcmToken, deviceId }] };
+      } else {
+        updateOps.$push.fcmToken = { fcmToken, deviceId };
+      }
+    }
+    
+    await customers.updateOne({ _id: customer._id }, updateOps);
+    
+    return res.status(200).json({ 
+      token, 
+      refreshToken, 
+      userId: customer._id.toString(), 
+      entityType: "customer", 
+      isMpinAlreadySet: customer?.mpinHash || null, 
+      shopId: customer.shopId.toString(), 
+      userDetails: {
+        name: customer.name,
+        cardNumber: customer.cardNumber,
+      } 
+    });
   }
   
   const shops = getShopCollection();
-  const shop = await shops.findOne({ phone, password });
-  if (shop) return res.status(200).json({ message: "User verified" });
+  const shop = await shops.findOne({ phone });
+  
+  let isShopValid = false;
+  if (shop) {
+    if (shop.password && shop.password.startsWith('$argon2')) {
+      isShopValid = await verifyPassword(shop.password, password);
+    } else {
+      isShopValid = shop.password === password;
+      if (isShopValid) {
+        await shops.updateOne({ _id: shop._id }, { $set: { password: await hashPassword(password) } });
+      }
+    }
+  }
+
+  if (isShopValid) {
+    const payload = { sub: shop._id.toString(), phone };
+    const token = signAccessToken(payload);
+    const refreshToken = signRefreshToken(payload);
+    
+    await shops.updateOne(
+      { _id: shop._id }, 
+      { 
+        $pull: { 
+          refreshToken: { deviceId }
+        } 
+      }
+    );
+
+    const updateOps = {
+      $push: { refreshToken: { refreshToken, deviceId } }
+    };
+
+    await shops.updateOne({ _id: shop._id }, updateOps);
+
+    return res.status(200).json({ 
+      token, 
+      refreshToken, 
+      userId: shop._id.toString(), 
+      entityType: "shop", 
+      isMpinAlreadySet: shop?.mpinHash || null, 
+      userDetails: {
+        name: shop.shopName,
+      } 
+    });
+  }
   
   return res.status(404).json({ message: "User not found" });
 }

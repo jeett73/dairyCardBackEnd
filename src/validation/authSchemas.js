@@ -3,7 +3,9 @@ import Joi from "joi";
 export const loginSchema = Joi.object({
   body: Joi.object({
     phone: Joi.string().regex(/^\d{10}$/).required(),
-    password: Joi.string().required()
+    password: Joi.string().required(),
+    deviceId: Joi.string().required(),
+    fcmToken: Joi.string().optional()
   })
 });
 

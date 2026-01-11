@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import { getCollection as getShopCollection } from "../models/shop.js";
 import { ok, created, updated, notFound, conflict, serverError, badRequest } from "../utils/response.js";
+import { hashPassword } from "../utils/password.js";
 
 export async function registerShop(req, res) {
   try {
@@ -10,6 +11,11 @@ export async function registerShop(req, res) {
     // if (existingByPhone) {
     //   return conflict(res, "Shop already exists");
     // }
+
+    if (doc.password) {
+      doc.password = await hashPassword(doc.password);
+    }
+
     const name = (doc.shopName || "").toString();
     const normalized = name.replace(/\s+/g, "").toUpperCase();
     if (!normalized) {
@@ -57,6 +63,11 @@ export async function updateShop(req, res) {
     const col = getShopCollection();
     const id = new ObjectId(req.params.id);
     const update = req.body;
+
+    if (update.password) {
+      update.password = await hashPassword(update.password);
+    }
+
     const result = await col.findOneAndUpdate(
       { _id: id },
       { $set: update },
