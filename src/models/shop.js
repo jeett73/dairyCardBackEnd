@@ -28,6 +28,7 @@ export const schema = Joi.object({
   features: Joi.array().items(Joi.object()).default([]),
   uniqueId: Joi.string().required(),
   serviceId: Joi.string().hex().length(24).required(),
+  password: Joi.string().allow(""),
   mpinHash: Joi.string().allow(""),
   refreshToken: Joi.array().items(
     Joi.object({

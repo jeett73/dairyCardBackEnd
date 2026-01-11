@@ -2,14 +2,8 @@ import Joi from "joi";
 
 export const loginSchema = Joi.object({
   body: Joi.object({
-    email: Joi.string().email().required(),
-    password: Joi.string().min(8).required()
-  })
-});
-
-export const sendOtpSchema = Joi.object({
-  body: Joi.object({
-    phone: Joi.string().regex(/^\d{10}$/).required()
+    phone: Joi.string().regex(/^\d{10}$/).required(),
+    password: Joi.string().required()
   })
 });
 

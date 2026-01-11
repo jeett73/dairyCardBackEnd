@@ -5,14 +5,23 @@ import { getCollection as getCustomerCollection } from "../models/customer.js";
 import { getCollection as getShopCollection } from "../models/shop.js";
 import { ok, updated, notFound, badRequest, serverError } from "../utils/response.js";
 
-export async function sendOtp(req, res) {
+export async function login(req, res) {
   const phone = (req.body.phone || "").toString();
+  const password = (req.body.password || "").toString();
+  
   const customers = getCustomerCollection();
-  const customer = await customers.findOne({ phone });
-  if (customer) return res.status(200).json({ message: "OTP sent" });
+  const customer = await customers.findOne({ phone, cardNumber: password });
+  if (customer) {
+    if (customer.refreshToken && customer.refreshToken.length > 0) {
+      return res.status(400).json({ message: "User already loggedin one device" });
+    }
+    return res.status(200).json({ message: "User verified" });
+  }
+  
   const shops = getShopCollection();
-  const shop = await shops.findOne({ phone });
-  if (shop) return res.status(200).json({ message: "OTP sent" });
+  const shop = await shops.findOne({ phone, password });
+  if (shop) return res.status(200).json({ message: "User verified" });
+  
   return res.status(404).json({ message: "User not found" });
 }
 
