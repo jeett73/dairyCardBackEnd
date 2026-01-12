@@ -59,6 +59,8 @@ export async function login(req, res) {
       userDetails: {
         name: customer.name,
         cardNumber: customer.cardNumber,
+        phone: customer.phone,
+        depositeAmount: customer.depositeAmount,
       } 
     });
   }
@@ -106,6 +108,7 @@ export async function login(req, res) {
       isMpinAlreadySet: shop?.mpinHash || null, 
       userDetails: {
         name: shop.shopName,
+        phone: shop.phone,
       } 
     });
   }

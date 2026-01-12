@@ -97,6 +97,26 @@ export async function updatePlanActive(req, res) {
   }
 }
 
+export async function updatePassword(req, res) {
+  try {
+    const col = getShopCollection();
+    const id = new ObjectId(req.params.id);
+    const { password } = req.body;
+
+    const hashedPassword = await hashPassword(password);
+
+    const result = await col.findOneAndUpdate(
+      { _id: id },
+      { $set: { password: hashedPassword } },
+      { returnDocument: "after" }
+    );
+    if (!result) return notFound(res, "Shop not found");
+    updated(res, { shop: result });
+  } catch {
+    serverError(res);
+  }
+}
+
 export async function listShops(req, res) {
   try {
     const col = getShopCollection();

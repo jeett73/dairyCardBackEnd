@@ -32,6 +32,15 @@ export const updateShopSchema = Joi.object({
   })
 });
 
+export const updatePasswordSchema = Joi.object({
+  params: Joi.object({
+    id: Joi.string().hex().length(24).required()
+  }),
+  body: Joi.object({
+    password: Joi.string().required()
+  })
+});
+
 export const updatePlanSchema = Joi.object({
   params: Joi.object({
     id: Joi.string().hex().length(24).required()
