@@ -48,20 +48,24 @@ export async function login(req, res) {
     }
     
     await customers.updateOne({ _id: customer._id }, updateOps);
-    
-    return res.status(200).json({ 
-      token, 
-      refreshToken, 
-      userId: customer._id.toString(), 
-      entityType: "customer", 
-      isMpinAlreadySet: customer?.mpinHash || null, 
-      shopId: customer.shopId.toString(), 
+
+    const shops = getShopCollection();
+    const customerShop = await shops.findOne({ _id: customer.shopId });
+
+    return res.status(200).json({
+      token,
+      refreshToken,
+      userId: customer._id.toString(),
+      entityType: 'customer',
+      isMpinAlreadySet: customer?.mpinHash || null,
+      shopId: customer.shopId.toString(),
+      shopName: customerShop?.shopName || '',
       userDetails: {
         name: customer.name,
         cardNumber: customer.cardNumber,
         phone: customer.phone,
         depositeAmount: customer.depositeAmount,
-      } 
+      },
     });
   }
   
