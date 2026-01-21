@@ -257,6 +257,217 @@ export async function getCardDetails(req, res) {
   }
 }
 
+export async function getMonthlyDuesAndDetails(req, res) {
+  try {
+    const col = getCardCollection();
+    const { customerId, shopId } = req.query;
+
+    const { month: currentMonth, year: currentYear } = getISTTime();
+    let lastMonth = currentMonth - 1;
+    let lastYear = currentYear;
+    if (lastMonth < 1) {
+      lastMonth = 12;
+      lastYear -= 1;
+    }
+
+    const buildPipeline = (m, y) => [
+      {
+        $match: {
+          customerId: new ObjectId(customerId),
+          shopId: new ObjectId(shopId),
+          month: m,
+          year: y,
+        },
+      },
+      { $unwind: { path: '$products', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$products.product', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: shopProductCollectionName,
+          let: { pid: { $ifNull: ['$products.product.productId', '000000000000000000000000'] } },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', { $toObjectId: '$$pid' }] },
+              },
+            },
+          ],
+          as: 'shopProduct',
+        },
+      },
+      { $unwind: { path: '$shopProduct', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: productCollectionName,
+          let: { pid: { $ifNull: ['$shopProduct.productId', '000000000000000000000000'] } },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', { $toObjectId: '$$pid' }] },
+              },
+            },
+          ],
+          as: 'product',
+        },
+      },
+      { $unwind: { path: '$product', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: productCollectionName,
+          let: { pid: { $ifNull: ['$products.product.productId', '000000000000000000000000'] } },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', { $toObjectId: '$$pid' }] },
+              },
+            },
+          ],
+          as: 'directProduct',
+        },
+      },
+      { $unwind: { path: '$directProduct', preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          'products.product.productName': {
+            $ifNull: [
+              '$product.Name',
+              '$product.name',
+              '$directProduct.Name',
+              '$directProduct.name',
+            ],
+          },
+          'products.product.icon': {
+            $ifNull: ['$product.icon', '$directProduct.icon', '$products.product.icon'],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            _id: '$_id',
+            day: '$products.day',
+          },
+          doc: { $first: '$$ROOT' },
+          items: { $push: '$products.product' },
+          others: { $first: '$products.others' },
+        },
+      },
+      {
+        $project: {
+          _id: '$doc._id',
+          customerId: '$doc.customerId',
+          shopId: '$doc.shopId',
+          month: '$doc.month',
+          year: '$doc.year',
+          totalBill: '$doc.totalBill',
+          day: { $toInt: '$_id.day' },
+          others: '$others',
+          items: {
+            $filter: {
+              input: '$items',
+              as: 'item',
+              cond: { $ne: ['$$item', null] },
+            },
+          },
+        },
+      },
+      { $sort: { day: -1 } },
+      {
+        $group: {
+          _id: '$_id',
+          customerId: { $first: '$customerId' },
+          shopId: { $first: '$shopId' },
+          month: { $first: '$month' },
+          year: { $first: '$year' },
+          totalBill: { $first: '$totalBill' },
+          products: {
+            $push: {
+              day: '$day',
+              product: '$items',
+              others: '$others',
+            },
+          },
+        },
+      },
+    ];
+
+    const currentDetails = await col.aggregate(buildPipeline(currentMonth, currentYear)).toArray();
+    const currentCardDoc = await col.findOne({
+      customerId: new ObjectId(customerId),
+      shopId: new ObjectId(shopId),
+      month: currentMonth,
+      year: currentYear,
+    }, { projection: { totalBill: 1, receivedAmount: 1 } });
+
+    const currentDue = currentCardDoc ? Number(currentCardDoc.totalBill || 0) - Number(currentCardDoc.receivedAmount || 0) : 0;
+    const currentCard = currentDetails.length ? currentDetails[0] : null;
+    if (currentCard && currentCard.products) {
+      currentCard.products = currentCard.products.filter((p) => p.day != null).sort((a, b) => b.day - a.day);
+    }
+
+    const pastDues = await col
+      .aggregate([
+        {
+          $match: {
+            customerId: new ObjectId(customerId),
+            shopId: new ObjectId(shopId),
+            $or: [
+              { year: { $lt: currentYear } },
+              { year: currentYear, month: { $lt: currentMonth } },
+            ],
+          },
+        },
+        {
+          $addFields: {
+            totalBillVal: { $ifNull: ['$totalBill', 0] },
+            receivedAmountVal: { $ifNull: ['$receivedAmount', 0] },
+          },
+        },
+        {
+          $addFields: {
+            dueAmount: { $subtract: ['$totalBillVal', '$receivedAmountVal'] },
+          },
+        },
+        {
+          $match: {
+            dueAmount: { $gt: 0 },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            month: 1,
+            year: 1,
+            dueAmount: 1,
+          },
+        },
+        { $sort: { year: -1, month: -1 } },
+      ])
+      .toArray();
+
+    const pastDetails = await Promise.all(
+      pastDues.map(async (d) => {
+        const details = await col.aggregate(buildPipeline(d.month, d.year)).toArray();
+        const card = details.length ? details[0] : null;
+        if (card && card.products) {
+          card.products = card.products.filter((p) => p.day != null).sort((a, b) => b.day - a.day);
+        }
+        return { month: d.month, year: d.year, dueAmount: d.dueAmount, card };
+      })
+    );
+
+    const result = [
+      { month: currentMonth, year: currentYear, dueAmount: currentDue, card: currentCard },
+      ...pastDetails,
+    ];
+
+    ok(res, result);
+  } catch (err) {
+    console.error(err);
+    serverError(res);
+  }
+}
+
 export async function getCustomerDueCards(req, res) {
   try {
     const col = getCardCollection();
@@ -315,9 +526,7 @@ export async function getBillSummary(req, res) {
     const col = getCardCollection();
     const { customerId, shopId } = req.query;
 
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
+    const { month: currentMonth, year: currentYear } = getISTTime();
 
     const card = await col
       .find(
