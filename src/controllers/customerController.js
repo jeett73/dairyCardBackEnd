@@ -15,7 +15,9 @@ export async function listCustomers(req, res) {
 
     const filter = { isDeleted: { $ne: true }, shopId: new ObjectId(shopId) };
     if (q) {
-      if (q.length <= 3) {
+      if (/[a-zA-Z]/.test(q)) {
+        filter.name = { $regex: q, $options: 'i' };
+      } else if (q.length <= 3) {
         filter.cardNumber = q.toString();
       } else {
         filter.phone = q.toString();
@@ -41,7 +43,14 @@ export async function listCustomers(req, res) {
     const customers = await col
       .aggregate([
         { $match: filter },
-        { $sort: { name: 1, _id: -1 } },
+        {
+          $addFields: {
+            cardNumberNum: { $toLong: "$cardNumber" }
+          }
+        },
+        {
+          $sort: { cardNumberNum: 1 } // 1 = ascending, -1 = descending
+        },
         { $skip: skip },
         { $limit: limit },
         {
