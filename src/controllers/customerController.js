@@ -126,17 +126,27 @@ export async function createCustomer(req, res) {
     const doc = req.body;
     const shopId = new ObjectId(doc.shopId);
     const phone = (doc.phone || '').toString();
-    const existing = await col.findOne({ shopId, phone });
+    const cardNumber = (doc.cardNumber || '').toString();
+
+    const existing = await col.findOne({
+      shopId,
+      $or: cardNumber ? [{ phone }, { cardNumber }] : [{ phone }]
+    });
+
     if (existing) {
-      return conflict(res, 'Customer already exists');
+      if (existing.phone === phone) {
+        return conflict(res, 'A card with this phone number already exists.');
+      }
+      return conflict(res, 'Card Number already exists');
     }
+
     const insertDoc = { ...doc, isDeleted: false, shopId };
     const result = await col.insertOne(insertDoc);
     const createdDoc = await col.findOne({ _id: result.insertedId });
     created(res, { customer: createdDoc });
   } catch (err) {
     if (err && err.code === 11000) {
-      return conflict(res, 'Card number already exists');
+      return conflict(res, 'Card Number already exists');
     }
     serverError(res);
   }
@@ -167,28 +177,55 @@ export async function updateCustomer(req, res) {
     }
     
     const col = getCustomerCollection();
-    const { name, cardNumber, street1, regularProduct } = req.body;
+    const { name, cardNumber, street1, regularProduct, phone } = req.body;
+
+    const currentCustomer = await col.findOne({ _id: new ObjectId(id), isDeleted: { $ne: true } });
+    if (!currentCustomer) {
+      return notFound(res, 'Customer not found');
+    }
+    const shopId = currentCustomer.shopId;
+
+    const conflictOr = [];
+    if (phone !== undefined && phone !== currentCustomer.phone) {
+      conflictOr.push({ phone });
+    }
+    if (cardNumber !== undefined && cardNumber !== currentCustomer.cardNumber) {
+      conflictOr.push({ cardNumber });
+    }
+
+    if (conflictOr.length > 0) {
+      const existing = await col.findOne({
+        shopId,
+        _id: { $ne: new ObjectId(id) },
+        $or: conflictOr,
+      });
+
+      if (existing) {
+        if (phone !== undefined && existing.phone === phone) {
+          return conflict(res, 'With this Phone number Card already exists');
+        }
+        return conflict(res, 'cardNumber already exists');
+      }
+    }
     
     const updateFields = {};
     if (name !== undefined) updateFields.name = name;
     if (cardNumber !== undefined) updateFields.cardNumber = cardNumber;
     if (street1 !== undefined) updateFields['address.street1'] = street1;
     if (regularProduct !== undefined) updateFields.regularProduct = regularProduct;
+    if (phone !== undefined) updateFields.phone = phone;
 
     if (Object.keys(updateFields).length === 0) {
       return badRequest(res, 'No fields to update');
     }
 
     const result = await col.findOneAndUpdate(
-      { _id: new ObjectId(id), isDeleted: { $ne: true } },
+      { _id: new ObjectId(id) },
       { $set: updateFields },
       { returnDocument: 'after' }
     );
 
-    if (!result) {
-      return notFound(res, 'Customer not found');
-    }
-
+    // result will not be null because we checked existence earlier
     updated(res, { customer: result });
   } catch (err) {
     if (err && err.code === 11000) {
