@@ -114,9 +114,7 @@ export async function getCardDetails(req, res) {
     const col = getCardCollection();
     const { customerId, shopId } = req.query;
 
-    const now = new Date();
-    const month = now.getMonth() + 1;
-    const year = now.getFullYear();
+    const { month, year } = getISTTime();
 
     const pipeline = [
       {
