@@ -2,9 +2,14 @@ import Joi from "joi";
 
 export const addShopProductSchema = Joi.object({
   body: Joi.object({
-    shopId: Joi.string().hex().length(24).required(),
-    productId: Joi.string().hex().length(24).required(),
-    price: Joi.number().min(0).required()
+    products: Joi.array().items(
+      Joi.object({
+        shopId: Joi.string().hex().length(24).required(),
+        productId: Joi.string().hex().length(24).required(),
+        price: Joi.number().min(0).required(),
+        order: Joi.number().min(0).required()
+      })
+    ).required()
   })
 });
 
