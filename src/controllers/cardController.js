@@ -648,56 +648,90 @@ export async function paymentDone(req, res) {
 export async function getRecentOrders(req, res) {
   try {
     const col = getCardCollection();
-    const { shopId } = req.query;
+    const { shopId, q } = req.query;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
     const { day: today, month, year } = getISTTime();
 
-    const pipeline = [
-      {
-        $match: {
-          shopId: new ObjectId(shopId),
-          month,
-          year,
-          'products.day': today,
-        },
+    const matchStage = {
+      $match: {
+        shopId: new ObjectId(shopId),
+        month,
+        year,
+        'products.day': today,
       },
-      { $sort: { modifiedAt: -1 } },
-      { $skip: skip },
-      { $limit: limit },
-      {
-        $lookup: {
-          from: "customers",
-          localField: 'customerId',
-          foreignField: '_id',
-          as: 'customer',
-        },
+    };
+
+    const lookupCustomerStage = {
+      $lookup: {
+        from: 'customers',
+        localField: 'customerId',
+        foreignField: '_id',
+        as: 'customer',
       },
-      { $unwind: { path: '$customer', preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          _id: 1,
-          customerId: 1,
-          shopId: 1,
-          month: 1,
-          year: 1,
-          totalBill: 1,
-          receivedAmount: 1,
-          modifiedAt: 1,
-          products: {
-            $filter: {
-              input: '$products',
-              as: 'item',
-              cond: { $eq: ['$$item.day', today] },
-            },
+    };
+
+    const unwindCustomerStage = { $unwind: { path: '$customer', preserveNullAndEmptyArrays: true } };
+
+    const projectStage = {
+      $project: {
+        _id: 1,
+        customerId: 1,
+        shopId: 1,
+        month: 1,
+        year: 1,
+        totalBill: 1,
+        receivedAmount: 1,
+        modifiedAt: 1,
+        products: {
+          $filter: {
+            input: '$products',
+            as: 'item',
+            cond: { $eq: ['$$item.day', today] },
           },
-          customerName: '$customer.name',
-          cardNumber: '$customer.cardNumber',
-          phone: '$customer.phone',
         },
+        customerName: '$customer.name',
+        cardNumber: '$customer.cardNumber',
+        phone: '$customer.phone',
       },
-    ];
+    };
+
+    let pipeline = [];
+
+    if (q) {
+      let searchMatch = {};
+      if (/[a-zA-Z]/.test(q)) {
+        searchMatch = { 'customer.name': { $regex: q, $options: 'i' } };
+      } else if (q.length <= 3) {
+        searchMatch = { 'customer.cardNumber': q.toString() };
+      } else {
+        searchMatch = { 'customer.phone': q.toString() };
+      }
+
+      pipeline = [
+        matchStage,
+        lookupCustomerStage,
+        unwindCustomerStage,
+        {
+          $match: searchMatch,
+        },
+        { $sort: { modifiedAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        projectStage,
+      ];
+    } else {
+      pipeline = [
+        matchStage,
+        { $sort: { modifiedAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        lookupCustomerStage,
+        unwindCustomerStage,
+        projectStage,
+      ];
+    }
 
     const orders = await col.aggregate(pipeline).toArray();
 
