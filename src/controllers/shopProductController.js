@@ -5,19 +5,23 @@ import { ok, created, updated, notFound, conflict, serverError } from "../utils/
 export async function addShopProduct(req, res) {
   try {
     const col = getShopProductCollection();
-    const shopId = (req.body.shopId || "").toString();
-    const productId = (req.body.productId || "").toString();
-    const price = Number(req.body.price);
-    const result = await col.findOneAndUpdate(
-      { shopId: new ObjectId(shopId), productId: new ObjectId(productId) },
-      { $set: { price } },
-      { upsert: true, returnDocument: "after" }
-    );
-    if (result.lastErrorObject && result.lastErrorObject.updatedExisting) {
-      updated(res, { shopProduct: result.value });
-    } else {
-      created(res, { shopProduct: result.value });
-    }
+    const items = req.body.products || [];
+    
+    const results = await Promise.all(items.map(async (item) => {
+      const shopId = (item.shopId || "").toString();
+      const productId = (item.productId || "").toString();
+      const price = Number(item.price);
+      const order = Number(item.order);
+      
+      const result = await col.findOneAndUpdate(
+        { shopId: new ObjectId(shopId), productId: new ObjectId(productId) },
+        { $set: { price, order } },
+        { upsert: true, returnDocument: "after" }
+      );
+      return result.value;
+    }));
+
+    ok(res, { shopProducts: results });
   } catch (err) {
     serverError(res);
   }
@@ -52,7 +56,7 @@ export async function listShopProducts(req, res) {
     const items = await col
       .aggregate([
         { $match: filter },
-        { $sort: { _id: -1 } },
+        { $sort: { order: 1 } },
         { $skip: skip },
         { $limit: limit },
         {

@@ -28,6 +28,7 @@ export const updateCustomerSchema = Joi.object({
     name: Joi.string(),
     cardNumber: Joi.string(),
     street1: Joi.string().trim(),
+    phone: Joi.string().trim(),
     regularProduct: Joi.array().items(
       Joi.object({
         productId: Joi.string().hex().length(24).required(),
