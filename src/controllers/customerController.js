@@ -12,6 +12,8 @@ export async function listCustomers(req, res) {
     const limit = Number(req.query.limit) || 10;
     const shopId = (req.query.shopId || '').toString();
     const q = (req.query.q || '').toString().trim();
+    const dueOnly = req.query.dueOnly === 'true';
+    const sortBy = (req.query.sortBy || 'card').toString();
 
     const filter = { isDeleted: { $ne: true }, shopId: new ObjectId(shopId) };
     if (q) {
@@ -38,81 +40,100 @@ export async function listCustomers(req, res) {
       });
     }
 
+    // Determine sort criteria based on sortBy parameter
+    let sortStage;
+    if (sortBy === 'name') {
+      sortStage = { $sort: { name: 1 } };
+    } else {
+      // Default to card number sorting
+      sortStage = { $sort: { cardNumberNum: 1 } };
+    }
+
     const skip = (page - 1) * limit;
     const total = await col.countDocuments(filter);
-    const customers = await col
-      .aggregate([
-        { $match: filter },
-        {
-          $addFields: {
-            cardNumberNum: { $toLong: "$cardNumber" }
-          }
+
+    const pipeline = [
+      { $match: filter },
+      {
+        $addFields: {
+          cardNumberNum: { $toLong: "$cardNumber" }
+        }
+      },
+      {
+        $lookup: {
+          from: shopCollectionName,
+          let: { shopIdStr: '$shopId' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$_id', '$$shopIdStr'] } } },
+            { $project: { shopName: 1, phone: 1, Address: 1, isPlanActive: 1 } },
+          ],
+          as: 'shop',
         },
-        {
-          $sort: { cardNumberNum: 1 } // 1 = ascending, -1 = descending
-        },
-        { $skip: skip },
-        { $limit: limit },
-        {
-          $lookup: {
-            from: shopCollectionName,
-            let: { shopIdStr: '$shopId' },
-            pipeline: [
-              { $match: { $expr: { $eq: ['$_id', '$$shopIdStr'] } } },
-              { $project: { shopName: 1, phone: 1, Address: 1, isPlanActive: 1 } },
-            ],
-            as: 'shop',
-          },
-        },
-        { $addFields: { shop: { $arrayElemAt: ['$shop', 0] } } },
-        {
-          $lookup: {
-            from: cardCollectionName,
-            let: { customerId: '$_id' },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ['$customerId', '$$customerId'] },
-                      {
-                        $or: prevMonthsCriteria,
-                      },
-                    ],
-                  },
+      },
+      { $addFields: { shop: { $arrayElemAt: ['$shop', 0] } } },
+      {
+        $lookup: {
+          from: cardCollectionName,
+          let: { customerId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$customerId', '$$customerId'] },
+                    {
+                      $or: prevMonthsCriteria,
+                    },
+                  ],
                 },
               },
-              {
-                $project: {
-                  due: {
-                    $subtract: [
-                      { $ifNull: ['$totalBill', 0] },
-                      { $ifNull: ['$receivedAmount', 0] },
-                    ],
-                  },
+            },
+            {
+              $project: {
+                due: {
+                  $subtract: [
+                    { $ifNull: ['$totalBill', 0] },
+                    { $ifNull: ['$receivedAmount', 0] },
+                  ],
                 },
               },
-            ],
-            as: 'prevCards',
-          },
+            },
+          ],
+          as: 'prevCards',
         },
-        {
-          $addFields: {
-            previousMonthDue: { $sum: '$prevCards.due' },
-          },
+      },
+      {
+        $addFields: {
+          previousMonthDue: { $sum: '$prevCards.due' },
         },
-        {
-          $project: {
-            _id: 1,
-            name: 1,
-            cardNumber: 1,
-            phone: 1,
-            regularProduct: 1,
-            previousMonthDue: 1,
-          },
+      },
+    ];
+
+    // Add filter for dueOnly if requested
+    if (dueOnly) {
+      pipeline.push({
+        $match: { previousMonthDue: { $gt: 0 } }
+      });
+    }
+
+    // Add sorting, pagination, and projection
+    pipeline.push(
+      sortStage,
+      { $skip: skip },
+      { $limit: limit },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          cardNumber: 1,
+          phone: 1,
+          regularProduct: 1,
+          previousMonthDue: 1,
         },
-      ])
-      .toArray();
+      }
+    );
+
+    const customers = await col.aggregate(pipeline).toArray();
 
     ok(res, { customers, page, limit, total });
   } catch {
@@ -130,8 +151,11 @@ export async function createCustomer(req, res) {
 
     const existing = await col.findOne({
       shopId,
-      $or: cardNumber ? [{ phone }, { cardNumber }] : [{ phone }]
+      $or: cardNumber ? [{ phone }, { cardNumber }] : [{ phone }],
+      isDeleted: { $ne: true }
     });
+
+    console.log(JSON.stringify(existing, null, 2));
 
     if (existing) {
       if (existing.phone === phone) {
@@ -175,7 +199,7 @@ export async function updateCustomer(req, res) {
     if (!ObjectId.isValid(id)) {
       return badRequest(res, 'Invalid customer ID');
     }
-    
+
     const col = getCustomerCollection();
     const { name, cardNumber, street1, regularProduct, phone } = req.body;
 
@@ -207,7 +231,7 @@ export async function updateCustomer(req, res) {
         return conflict(res, 'cardNumber already exists');
       }
     }
-    
+
     const updateFields = {};
     if (name !== undefined) updateFields.name = name;
     if (cardNumber !== undefined) updateFields.cardNumber = cardNumber;
@@ -231,6 +255,32 @@ export async function updateCustomer(req, res) {
     if (err && err.code === 11000) {
       return conflict(res, 'Card number already exists');
     }
+    serverError(res);
+  }
+}
+
+export async function deleteCustomer(req, res) {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return badRequest(res, 'Invalid customer ID');
+    }
+
+    const col = getCustomerCollection();
+    const customer = await col.findOne({ _id: new ObjectId(id), isDeleted: { $ne: true } });
+
+    if (!customer) {
+      return notFound(res, 'Customer not found');
+    }
+
+    // Soft delete by setting isDeleted flag
+    await col.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { isDeleted: true } }
+    );
+
+    ok(res, { message: 'Customer deleted successfully' });
+  } catch (err) {
     serverError(res);
   }
 }

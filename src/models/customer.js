@@ -60,5 +60,5 @@ export const schema = Joi.object({
 
 export async function ensureIndexes(db) {
   const col = db.collection(collectionName);
-  await col.createIndex({ cardNumber: 1, phone: 1, shopId: 1 }, { unique: true })
+  await col.createIndex({ cardNumber: 1, phone: 1, shopId: 1, isDeleted: 1 }, { unique: true })
 }
