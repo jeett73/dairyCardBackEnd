@@ -2,7 +2,7 @@ import admin from "firebase-admin";
 import fs from "fs";
 import path from "path";
 
-const serviceAccountPath = "d:/dailyCardBackend/serviceAccountKey.json";
+const serviceAccountPath = path.join(process.cwd(), "firebaseKey.json");
 
 if (fs.existsSync(serviceAccountPath)) {
   const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
