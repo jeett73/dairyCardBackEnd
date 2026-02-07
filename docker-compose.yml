@@ -15,6 +15,8 @@ services:
       - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS}
       - RATE_LIMIT_MAX=${RATE_LIMIT_MAX}
       - REDIS_URL=redis://default:${REDIS_PASSWORD}@redis:6379
+    volumes:
+      - ./firebaseKey.json:/app/firebaseKey.json      
     ports:
       - "${PORT}:3000"
   redis:
