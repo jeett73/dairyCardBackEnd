@@ -326,16 +326,29 @@ export async function getMonthlyDuesAndDetails(req, res) {
       { $unwind: { path: '$directProduct', preserveNullAndEmptyArrays: true } },
       {
         $addFields: {
-          'products.product.productName': {
-            $ifNull: [
-              '$product.Name',
-              '$product.name',
-              '$directProduct.Name',
-              '$directProduct.name',
-            ],
-          },
-          'products.product.icon': {
-            $ifNull: ['$product.icon', '$directProduct.icon', '$products.product.icon'],
+          'products.product': {
+            $cond: {
+              if: { $ifNull: ['$products.product', false] },
+              then: {
+                $mergeObjects: [
+                  '$products.product',
+                  {
+                    productName: {
+                      $ifNull: [
+                        '$product.Name',
+                        '$product.name',
+                        '$directProduct.Name',
+                        '$directProduct.name',
+                      ],
+                    },
+                    icon: {
+                      $ifNull: ['$product.icon', '$directProduct.icon', '$products.product.icon'],
+                    },
+                  },
+                ],
+              },
+              else: '$products.product',
+            },
           },
         },
       },
