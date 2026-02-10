@@ -843,7 +843,6 @@ export async function updateOrder(req, res) {
 export async function getCardDetailsByMonth(req, res) {
   try {
     const col = getCardCollection();
-    console.log(JSON.stringify(req.body, null, 2));
 
     const { customerId, shopId, month, year } = req.body;
 
