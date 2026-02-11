@@ -326,16 +326,29 @@ export async function getMonthlyDuesAndDetails(req, res) {
       { $unwind: { path: '$directProduct', preserveNullAndEmptyArrays: true } },
       {
         $addFields: {
-          'products.product.productName': {
-            $ifNull: [
-              '$product.Name',
-              '$product.name',
-              '$directProduct.Name',
-              '$directProduct.name',
-            ],
-          },
-          'products.product.icon': {
-            $ifNull: ['$product.icon', '$directProduct.icon', '$products.product.icon'],
+          'products.product': {
+            $cond: {
+              if: { $ifNull: ['$products.product', false] },
+              then: {
+                $mergeObjects: [
+                  '$products.product',
+                  {
+                    productName: {
+                      $ifNull: [
+                        '$product.Name',
+                        '$product.name',
+                        '$directProduct.Name',
+                        '$directProduct.name',
+                      ],
+                    },
+                    icon: {
+                      $ifNull: ['$product.icon', '$directProduct.icon', '$products.product.icon'],
+                    },
+                  },
+                ],
+              },
+              else: '$products.product',
+            },
           },
         },
       },
@@ -536,8 +549,9 @@ export async function getBillSummary(req, res) {
             { year: currentYear, month: { $lt: currentMonth } },
           ],
         },
-        { projection: { totalBill: 1, month: 1, year: 1, _id: 0 } },
+        { projection: { totalBill: 1, month: 1, year: 1, receivedAmount: 1, _id: 0 } },
       )
+      .sort({ year: -1, month: -1 })
       .toArray();
 
     ok(res, card);
@@ -820,6 +834,151 @@ export async function updateOrder(req, res) {
     }
 
     ok(res, { message: 'Order updated successfully' }, { card: updated.value });
+  } catch (err) {
+    console.error(err);
+    serverError(res);
+  }
+}
+
+export async function getCardDetailsByMonth(req, res) {
+  try {
+    const col = getCardCollection();
+
+    const { customerId, shopId, month, year } = req.body;
+
+    const pipeline = [
+      {
+        $match: {
+          customerId: new ObjectId(customerId),
+          shopId: new ObjectId(shopId),
+          month: month,
+          year: year,
+        },
+      },
+      { $unwind: { path: '$products', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$products.product', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: shopProductCollectionName,
+          let: { pid: { $ifNull: ['$products.product.productId', '000000000000000000000000'] } },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', { $toObjectId: '$$pid' }] },
+              },
+            },
+          ],
+          as: 'shopProduct',
+        },
+      },
+      { $unwind: { path: '$shopProduct', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: productCollectionName,
+          let: { pid: { $ifNull: ['$shopProduct.productId', '000000000000000000000000'] } },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', { $toObjectId: '$$pid' }] },
+              },
+            },
+          ],
+          as: 'product',
+        },
+      },
+      { $unwind: { path: '$product', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: productCollectionName,
+          let: { pid: { $ifNull: ['$products.product.productId', '000000000000000000000000'] } },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', { $toObjectId: '$$pid' }] },
+              },
+            },
+          ],
+          as: 'directProduct',
+        },
+      },
+      { $unwind: { path: '$directProduct', preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          'products.product.productName': {
+            $ifNull: [
+              '$product.Name',
+              '$product.name',
+              '$directProduct.Name',
+              '$directProduct.name',
+            ],
+          },
+          'products.product.icon': {
+            $ifNull: ['$product.icon', '$directProduct.icon', '$products.product.icon'],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            _id: '$_id',
+            day: '$products.day',
+          },
+          doc: { $first: '$$ROOT' },
+          items: { $push: '$products.product' },
+          others: { $first: '$products.others' },
+        },
+      },
+      {
+        $project: {
+          _id: '$doc._id',
+          customerId: '$doc.customerId',
+          shopId: '$doc.shopId',
+          month: '$doc.month',
+          year: '$doc.year',
+          totalBill: '$doc.totalBill',
+          day: { $toInt: '$_id.day' },
+          others: '$others',
+          items: {
+            $filter: {
+              input: '$items',
+              as: 'item',
+              cond: { $ne: ['$$item', null] },
+            },
+          },
+        },
+      },
+      { $sort: { day: -1 } },
+      {
+        $group: {
+          _id: '$_id',
+          customerId: { $first: '$customerId' },
+          shopId: { $first: '$shopId' },
+          month: { $first: '$month' },
+          year: { $first: '$year' },
+          totalBill: { $first: '$totalBill' },
+          products: {
+            $push: {
+              day: '$day',
+              product: '$items',
+              others: '$others',
+            },
+          },
+        },
+      },
+    ];
+
+    const cards = await col.aggregate(pipeline).toArray();
+
+    if (!cards.length) {
+      return ok(res, { card: null });
+    }
+
+    const card = cards[0];
+    if (card.products) {
+      card.products = card.products.filter((p) => p.day != null).sort((a, b) => b.day - a.day);
+    }
+
+    ok(res, { card });
   } catch (err) {
     console.error(err);
     serverError(res);

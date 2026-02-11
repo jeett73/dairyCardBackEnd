@@ -81,3 +81,12 @@ export const getRecentOrdersSchema = Joi.object({
     q: Joi.string().allow('').optional(),
   }),
 });
+
+export const getCardDetailsByMonthSchema = Joi.object({
+  body: Joi.object({
+    customerId: Joi.string().hex().length(24).required(),
+    shopId: Joi.string().hex().length(24).required(),
+    month: Joi.number().integer().min(1).max(12).required(),
+    year: Joi.number().integer().min(2020).required(),
+  }),
+});
