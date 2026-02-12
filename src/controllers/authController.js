@@ -10,18 +10,18 @@ export async function login(req, res) {
   const password = (req.body.password || "").toString();
   const fcmToken = req.body.fcmToken;
   const deviceId = req.body.deviceId;
-  
+
   const customers = getCustomerCollection();
   const customer = await customers.findOne({ phone, cardNumber: password });
   if (customer) {
-    if (customer.refreshToken && customer.refreshToken.length > 0) {
-      return res.status(400).json({ message: "User already loggedin one device" });
-    }
-    
+    // if (customer.refreshToken && customer.refreshToken.length > 0) {
+    //   return res.status(400).json({ message: "User already loggedin one device" });
+    // }
+
     const payload = { sub: customer._id.toString(), phone };
     const token = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
-    
+
     const pullUpdate = {
       $pull: { refreshToken: { deviceId } }
     };
@@ -31,10 +31,10 @@ export async function login(req, res) {
     }
 
     await customers.updateOne(
-      { _id: customer._id }, 
+      { _id: customer._id },
       pullUpdate
     );
-    
+
     const updateOps = {
       $push: { refreshToken: { refreshToken, deviceId } }
     };
@@ -46,7 +46,7 @@ export async function login(req, res) {
         updateOps.$push.fcmToken = { fcmToken, deviceId };
       }
     }
-    
+
     await customers.updateOne({ _id: customer._id }, updateOps);
 
     const shops = getShopCollection();
@@ -68,10 +68,10 @@ export async function login(req, res) {
       },
     });
   }
-  
+
   const shops = getShopCollection();
   const shop = await shops.findOne({ phone });
-  
+
   let isShopValid = false;
   if (shop) {
     if (shop.password && shop.password.startsWith('$argon2')) {
@@ -88,13 +88,13 @@ export async function login(req, res) {
     const payload = { sub: shop._id.toString(), phone };
     const token = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
-    
+
     await shops.updateOne(
-      { _id: shop._id }, 
-      { 
-        $pull: { 
+      { _id: shop._id },
+      {
+        $pull: {
           refreshToken: { deviceId }
-        } 
+        }
       }
     );
 
@@ -104,19 +104,19 @@ export async function login(req, res) {
 
     await shops.updateOne({ _id: shop._id }, updateOps);
 
-    return res.status(200).json({ 
-      token, 
-      refreshToken, 
-      userId: shop._id.toString(), 
-      entityType: "shop", 
-      isMpinAlreadySet: shop?.mpinHash || null, 
+    return res.status(200).json({
+      token,
+      refreshToken,
+      userId: shop._id.toString(),
+      entityType: "shop",
+      isMpinAlreadySet: shop?.mpinHash || null,
       userDetails: {
         name: shop.shopName,
         phone: shop.phone,
-      } 
+      }
     });
   }
-  
+
   return res.status(404).json({ message: "User not found" });
 }
 
@@ -131,7 +131,7 @@ export async function verifyOtp(req, res) {
     const payload = { sub: customer._id.toString(), phone };
     const token = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
-    
+
     const pullUpdate = {
       $pull: { refreshToken: { deviceId } }
     };
@@ -141,10 +141,10 @@ export async function verifyOtp(req, res) {
     }
 
     await customers.updateOne(
-      { _id: customer._id }, 
+      { _id: customer._id },
       pullUpdate
     );
-    
+
     const updateOps = {
       $push: { refreshToken: { refreshToken, deviceId } }
     };
@@ -156,12 +156,14 @@ export async function verifyOtp(req, res) {
         updateOps.$push.fcmToken = { fcmToken, deviceId };
       }
     }
-    
+
     await customers.updateOne({ _id: customer._id }, updateOps);
-    return res.status(200).json({ token, refreshToken, userId: customer._id.toString(), entityType: "customer", isMpinAlreadySet: customer?.mpinHash || null, shopId: customer.shopId.toString(), userDetails: {
-      name: customer.name,
-      cardNumber: customer.cardNumber,
-    } });
+    return res.status(200).json({
+      token, refreshToken, userId: customer._id.toString(), entityType: "customer", isMpinAlreadySet: customer?.mpinHash || null, shopId: customer.shopId.toString(), userDetails: {
+        name: customer.name,
+        cardNumber: customer.cardNumber,
+      }
+    });
   }
 
   const shops = getShopCollection();
@@ -170,13 +172,13 @@ export async function verifyOtp(req, res) {
     const payload = { sub: shop._id.toString(), phone };
     const token = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
-    
+
     await shops.updateOne(
-      { _id: shop._id }, 
-      { 
-        $pull: { 
+      { _id: shop._id },
+      {
+        $pull: {
           refreshToken: { deviceId }
-        } 
+        }
       }
     );
 
@@ -186,9 +188,11 @@ export async function verifyOtp(req, res) {
 
     await shops.updateOne({ _id: shop._id }, updateOps);
 
-    return res.status(200).json({ token, refreshToken, userId: shop._id.toString(), entityType: "shop", isMpinAlreadySet: shop?.mpinHash || null, userDetails: {
-      name: shop.shopName,
-    } });
+    return res.status(200).json({
+      token, refreshToken, userId: shop._id.toString(), entityType: "shop", isMpinAlreadySet: shop?.mpinHash || null, userDetails: {
+        name: shop.shopName,
+      }
+    });
   }
 
   return res.status(404).json({ message: "User not found" });
@@ -289,7 +293,7 @@ export async function refresh(req, res) {
     } else if (typeof tokens === 'string') {
       if (tokens === token) stored = token;
     }
-    
+
     if (!stored) {
       return res.status(401).json({ message: "Invalid refresh token" });
     }
@@ -308,16 +312,16 @@ export async function logout(req, res) {
     const customers = getCustomerCollection();
     const customer = await customers.findOne({ _id: id });
     if (customer) {
-      const pullOps = { 
-        $pull: { 
+      const pullOps = {
+        $pull: {
           refreshToken: { deviceId }
-        } 
+        }
       };
       if (Array.isArray(customer.fcmToken)) {
         pullOps.$pull.fcmToken = { deviceId };
       }
       await customers.updateOne(
-        { _id: id }, 
+        { _id: id },
         pullOps
       );
       return updated(res, { message: "Logged out", entityType: "customer" });
@@ -325,13 +329,13 @@ export async function logout(req, res) {
     const shops = getShopCollection();
     const shop = await shops.findOne({ _id: id });
     if (shop) {
-      const pullOps = { 
-        $pull: { 
+      const pullOps = {
+        $pull: {
           refreshToken: { deviceId }
-        } 
+        }
       };
       await shops.updateOne(
-        { _id: id }, 
+        { _id: id },
         pullOps
       );
       return updated(res, { message: "Logged out", entityType: "shop" });
