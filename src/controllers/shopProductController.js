@@ -6,13 +6,13 @@ export async function addShopProduct(req, res) {
   try {
     const col = getShopProductCollection();
     const items = req.body.products || [];
-    
+
     const results = await Promise.all(items.map(async (item) => {
       const shopId = (item.shopId || "").toString();
       const productId = (item.productId || "").toString();
       const price = Number(item.price);
       const order = Number(item.order);
-      
+
       const result = await col.findOneAndUpdate(
         { shopId: new ObjectId(shopId), productId: new ObjectId(productId) },
         { $set: { price, order } },
@@ -48,17 +48,12 @@ export async function listShopProducts(req, res) {
   try {
     const col = getShopProductCollection();
     const shopId = (req.query.shopId || "").toString();
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 10;
     const filter = { shopId: new ObjectId(shopId) };
-    const skip = (page - 1) * limit;
     const total = await col.countDocuments(filter);
     const items = await col
       .aggregate([
         { $match: filter },
         { $sort: { order: 1 } },
-        { $skip: skip },
-        { $limit: limit },
         {
           $lookup: {
             from: "products",
@@ -73,7 +68,7 @@ export async function listShopProducts(req, res) {
         { $project: { product: 0, productObjectId: 0 } }
       ])
       .toArray();
-    ok(res, { shopProducts: items, page, limit, total });
+    ok(res, { shopProducts: items, total });
   } catch {
     serverError(res);
   }
