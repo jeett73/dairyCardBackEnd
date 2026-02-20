@@ -212,7 +212,12 @@ export async function getCardDetails(req, res) {
             $filter: {
               input: '$items',
               as: 'item',
-              cond: { $ne: ['$$item', null] },
+              cond: {
+                $and: [
+                  { $ne: ['$$item', null] },
+                  { $ne: [{ $ifNull: ['$$item.productId', null] }, null] },
+                ],
+              },
             },
           },
         },
