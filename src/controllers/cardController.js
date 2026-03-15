@@ -382,7 +382,12 @@ export async function getMonthlyDuesAndDetails(req, res) {
             $filter: {
               input: '$items',
               as: 'item',
-              cond: { $ne: ['$$item', null] },
+              cond: {
+                $and: [
+                  { $ne: ['$$item', null] },
+                  { $ne: [{ $ifNull: ['$$item.productId', null] }, null] },
+                ],
+              },
             },
           },
         },
@@ -947,7 +952,12 @@ export async function getCardDetailsByMonth(req, res) {
             $filter: {
               input: '$items',
               as: 'item',
-              cond: { $ne: ['$$item', null] },
+              cond: {
+                $and: [
+                  { $ne: ['$$item', null] },
+                  { $ne: [{ $ifNull: ['$$item.productId', null] }, null] },
+                ],
+              },
             },
           },
         },
