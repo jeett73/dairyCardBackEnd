@@ -10,6 +10,7 @@ import config from "./config/index.js";
 
 const app = express();
 
+app.set("trust proxy", true);
 app.disable("x-powered-by");
 app.use(helmet());
 app.use(hpp());
