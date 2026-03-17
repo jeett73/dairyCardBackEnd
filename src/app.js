@@ -4,7 +4,7 @@ import helmet from "helmet";
 import cors from "cors";
 import morgan from "morgan";
 import hpp from "hpp";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import routes from "./routes/index.js";
 import config from "./config/index.js";
 
@@ -16,12 +16,31 @@ app.use(helmet());
 app.use(hpp());
 app.use(cors({ origin: config.corsOrigin, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
-app.use(morgan(config.env === "production" ? "combined" : "dev"));
+/* Logging */
+app.use(
+    morgan(config.env === "production"
+        ? ":remote-addr :method :url :status :response-time ms"
+        : "dev"
+    )
+);
 app.use("/uploads", express.static(path.resolve("src/uploads")));
 
-const authLimiter = rateLimit({ windowMs: config.rateLimit.windowMs, max: config.rateLimit.max, standardHeaders: true, legacyHeaders: false });
+const authLimiter = rateLimit({ windowMs: config.rateLimit.windowMs, max: config.rateLimit.max, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => ipKeyGenerator(req.headers["cf-connecting-ip"] || req.ip) });
 app.use("/auth", authLimiter);
 
 routes(app);
+
+/* 404 handler */
+app.use((req, res) => {
+    res.status(404).json({ message: "Route not found" });
+});
+
+/* Global error handler */
+app.use((err, req, res, next) => {
+    console.error(err);
+    res.status(err.status || 500).json({
+        message: err.message || "Internal Server Error"
+    });
+});
 
 export default app;
